@@ -29,6 +29,14 @@
             name="%cpuusage.view.name"
             restorable="true">
       </view>
+      <view
+            category="org.eclipse.linuxtools.lttng2.ui.views.category"
+            class="org.eclipse.tracecompass.analysis.os.linux.ui.views.diskrequests.ResourcesView"
+            icon="icons/eview16/resources_view.gif"
+            id="org.eclipse.tracecompass.analysis.os.linux.views.diskrequests"
+            name="Disk requests"
+            restorable="true">
+      </view>
    </extension>
    <extension
          point="org.eclipse.linuxtools.tmf.core.analysis">
@@ -51,6 +59,13 @@
             id="org.eclipse.tracecompass.analysis.os.linux.views.cpuusage">
          <analysisModuleClass
                class="org.eclipse.tracecompass.analysis.os.linux.core.cpuusage.KernelCpuUsageAnalysis">
+         </analysisModuleClass>
+      </output>
+      <output
+            class="org.eclipse.tracecompass.tmf.ui.analysis.TmfAnalysisViewOutput"
+            id="org.eclipse.tracecompass.analysis.os.linux.views.diskrequests">
+         <analysisModuleClass
+               class="org.eclipse.tracecompass.analysis.os.linux.core.kernelanalysis.KernelAnalysisModule">
          </analysisModuleClass>
       </output>
    </extension>
