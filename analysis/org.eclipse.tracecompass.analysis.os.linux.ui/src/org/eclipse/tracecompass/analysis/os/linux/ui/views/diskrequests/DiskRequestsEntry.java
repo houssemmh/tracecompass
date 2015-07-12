@@ -23,18 +23,16 @@ import org.eclipse.tracecompass.tmf.ui.widgets.timegraph.model.TimeGraphEntry;
  *
  * @author Patrick Tasse
  */
-public class ResourcesEntry extends TimeGraphEntry implements Comparable<ITimeGraphEntry> {
+public class DiskRequestsEntry extends TimeGraphEntry implements Comparable<ITimeGraphEntry> {
 
     /** Type of resource */
     public static enum Type {
         /** Null resources (filler rows, etc.) */
         NULL,
-        /** Entries for CPUs */
-        CPU,
-        /** Entries for IRQs */
-        IRQ,
-        /** Entries for Soft IRQ */
-        SOFT_IRQ
+        /** Entries for the Driver */
+        DRIVER,
+        /** Entries for the block layer*/
+        BLOCK
     }
 
     private final int fId;
@@ -60,7 +58,7 @@ public class ResourcesEntry extends TimeGraphEntry implements Comparable<ITimeGr
      * @param id
      *            The id of this entry
      */
-    public ResourcesEntry(int quark, @NonNull ITmfTrace trace, String name,
+    public DiskRequestsEntry(int quark, @NonNull ITmfTrace trace, String name,
             long startTime, long endTime, Type type, int id) {
         super(name, startTime, endTime);
         fId = id;
@@ -83,7 +81,7 @@ public class ResourcesEntry extends TimeGraphEntry implements Comparable<ITimeGr
      * @param id
      *            The id of this entry
      */
-    public ResourcesEntry(@NonNull ITmfTrace trace, String name,
+    public DiskRequestsEntry(@NonNull ITmfTrace trace, String name,
             long startTime, long endTime, int id) {
         this(-1, trace, name, startTime, endTime, Type.NULL, id);
     }
@@ -104,9 +102,9 @@ public class ResourcesEntry extends TimeGraphEntry implements Comparable<ITimeGr
      * @param id
      *            The id of this entry
      */
-    public ResourcesEntry(int quark, @NonNull ITmfTrace trace,
+    public DiskRequestsEntry(int quark, @NonNull ITmfTrace trace,
             long startTime, long endTime, Type type, int id) {
-        this(quark, trace, type.toString() + " " + id, startTime, endTime, type, id); //$NON-NLS-1$
+        this(quark, trace, "", startTime, endTime, type, id); //$NON-NLS-1$
     }
 
     /**
@@ -155,11 +153,11 @@ public class ResourcesEntry extends TimeGraphEntry implements Comparable<ITimeGr
 
     @Override
     public int compareTo(ITimeGraphEntry other) {
-        if (!(other instanceof ResourcesEntry)) {
+        if (!(other instanceof DiskRequestsEntry)) {
             /* Should not happen, but if it does, put those entries at the end */
             return -1;
         }
-        ResourcesEntry o = (ResourcesEntry) other;
+        DiskRequestsEntry o = (DiskRequestsEntry) other;
 
         /*
          * Resources entry names should all be of type "ABC 123"

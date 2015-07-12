@@ -36,7 +36,6 @@ public interface Attributes {
     static final String BYTES_READ="bytes_read";
     static final String BYTES_WRITTEN="bytes_written";
     static final String STATUS = "Status";
-    static final String EXEC_NAME ="Exec_name";
     static final String DISKS="Disks";
     static final String WAITING_QUEUE = "Waiting_queue";
     static final String DRIVER_QUEUE = "Driver_queue";

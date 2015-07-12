@@ -22,9 +22,9 @@ import java.util.Map;
 
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.jdt.annotation.Nullable;
-import org.eclipse.tracecompass.analysis.os.linux.core.kernelanalysis.Attributes;
-import org.eclipse.tracecompass.analysis.os.linux.core.kernelanalysis.KernelAnalysisModule;
-import org.eclipse.tracecompass.analysis.os.linux.ui.views.diskrequests.ResourcesEntry.Type;
+import org.eclipse.tracecompass.analysis.os.linux.core.inputoutput.Attributes;
+import org.eclipse.tracecompass.analysis.os.linux.core.inputoutput.InputOutputAnalysisModule;
+import org.eclipse.tracecompass.analysis.os.linux.ui.views.diskrequests.DiskRequestsEntry.Type;
 import org.eclipse.tracecompass.internal.analysis.os.linux.ui.Messages;
 import org.eclipse.tracecompass.statesystem.core.ITmfStateSystem;
 import org.eclipse.tracecompass.statesystem.core.StateSystemUtils;
@@ -47,7 +47,7 @@ import org.eclipse.tracecompass.tmf.ui.widgets.timegraph.model.TimeGraphEntry;
  *
  * @author Patrick Tasse
  */
-public class ResourcesView extends AbstractTimeGraphView {
+public class DiskRequestsView extends AbstractTimeGraphView {
 
     /** View ID. */
     public static final String ID = "org.eclipse.tracecompass.analysis.os.linux.views.diskrequests"; //$NON-NLS-1$
@@ -66,8 +66,8 @@ public class ResourcesView extends AbstractTimeGraphView {
     /**
      * Default constructor
      */
-    public ResourcesView() {
-        super(ID, new ResourcesPresentationProvider());
+    public DiskRequestsView() {
+        super(ID, new DiskRequestsPresentationProvider());
         setFilterColumns(FILTER_COLUMN_NAMES);
     }
 
@@ -97,19 +97,21 @@ public class ResourcesView extends AbstractTimeGraphView {
 
     @Override
     protected void buildEventList(ITmfTrace trace, ITmfTrace parentTrace, IProgressMonitor monitor) {
-        ITmfStateSystem ssq = TmfStateSystemAnalysisModule.getStateSystem(trace, KernelAnalysisModule.ID);
+        ITmfStateSystem ssq = TmfStateSystemAnalysisModule.getStateSystem(trace, InputOutputAnalysisModule.ID);
         if (ssq == null) {
             return;
         }
         Comparator<ITimeGraphEntry> comparator = new Comparator<ITimeGraphEntry>() {
             @Override
             public int compare(ITimeGraphEntry o1, ITimeGraphEntry o2) {
-                return ((ResourcesEntry) o1).compareTo(o2);
+                return ((DiskRequestsEntry) o1).compareTo(o2);
             }
         };
 
-        Map<Integer, ResourcesEntry> entryMap = new HashMap<>();
+        Map<Integer, DiskRequestsEntry> entryMap = new HashMap<>();
         TimeGraphEntry traceEntry = null;
+        TimeGraphEntry driverEntry = null;
+        TimeGraphEntry blockEntry = null;
 
         long startTime = ssq.getStartTime();
         long start = startTime;
@@ -131,7 +133,7 @@ public class ResourcesView extends AbstractTimeGraphView {
             setEndTime(Math.max(getEndTime(), endTime));
 
             if (traceEntry == null) {
-                traceEntry = new ResourcesEntry(trace, trace.getName(), startTime, endTime, 0);
+                traceEntry = new DiskRequestsEntry(trace, trace.getName(), startTime, endTime, 0);
                 traceEntry.sortChildren(comparator);
                 List<TimeGraphEntry> entryList = Collections.singletonList(traceEntry);
                 addToEntryList(parentTrace, entryList);
@@ -139,38 +141,42 @@ public class ResourcesView extends AbstractTimeGraphView {
                 traceEntry.updateEndTime(endTime);
             }
 
-            List<Integer> cpuQuarks = ssq.getQuarks(Attributes.CPUS, "*"); //$NON-NLS-1$
-            for (Integer cpuQuark : cpuQuarks) {
-                int cpu = Integer.parseInt(ssq.getAttributeName(cpuQuark));
-                ResourcesEntry entry = entryMap.get(cpuQuark);
+            if (driverEntry == null) {
+                driverEntry = new DiskRequestsEntry(trace, "Driver Queue", startTime, endTime, 0);
+                driverEntry.sortChildren(comparator);
+                traceEntry.addChild(driverEntry);
+            } else {
+                driverEntry.updateEndTime(endTime);
+            }
+
+            if (blockEntry == null) {
+                blockEntry = new DiskRequestsEntry(trace, "Block Layer Queue", startTime, endTime, 1);
+                blockEntry.sortChildren(comparator);
+                traceEntry.addChild(blockEntry);
+            } else {
+                blockEntry.updateEndTime(endTime);
+            }
+
+            List<Integer> driverSlotsQuarks = ssq.getQuarks("Disks","sda",Attributes.DRIVER_QUEUE, "*"); //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
+            for (Integer driverSlotQuark : driverSlotsQuarks) {
+                int driverSlot = Integer.parseInt(ssq.getAttributeName(driverSlotQuark));
+                DiskRequestsEntry entry = entryMap.get(driverSlotQuark);
                 if (entry == null) {
-                    entry = new ResourcesEntry(cpuQuark, trace, startTime, endTime, Type.CPU, cpu);
-                    entryMap.put(cpuQuark, entry);
-                    traceEntry.addChild(entry);
+                    entry = new DiskRequestsEntry(driverSlotQuark, trace, startTime, endTime, Type.DRIVER, driverSlot);
+                    entryMap.put(driverSlotQuark, entry);
+                    driverEntry.addChild(entry);
                 } else {
                     entry.updateEndTime(endTime);
                 }
             }
-            List<Integer> irqQuarks = ssq.getQuarks(Attributes.RESOURCES, Attributes.IRQS, "*"); //$NON-NLS-1$
-            for (Integer irqQuark : irqQuarks) {
-                int irq = Integer.parseInt(ssq.getAttributeName(irqQuark));
-                ResourcesEntry entry = entryMap.get(irqQuark);
+            List<Integer> blockSlotsQuarks = ssq.getQuarks("Disks","sda",Attributes.WAITING_QUEUE, "*"); //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
+            for (Integer blockSlotQuark : blockSlotsQuarks) {
+                int blockSlot = Integer.parseInt(ssq.getAttributeName(blockSlotQuark));
+                DiskRequestsEntry entry = entryMap.get(blockSlotQuark);
                 if (entry == null) {
-                    entry = new ResourcesEntry(irqQuark, trace, startTime, endTime, Type.IRQ, irq);
-                    entryMap.put(irqQuark, entry);
-                    traceEntry.addChild(entry);
-                } else {
-                    entry.updateEndTime(endTime);
-                }
-            }
-            List<Integer> softIrqQuarks = ssq.getQuarks(Attributes.RESOURCES, Attributes.SOFT_IRQS, "*"); //$NON-NLS-1$
-            for (Integer softIrqQuark : softIrqQuarks) {
-                int softIrq = Integer.parseInt(ssq.getAttributeName(softIrqQuark));
-                ResourcesEntry entry = entryMap.get(softIrqQuark);
-                if (entry == null) {
-                    entry = new ResourcesEntry(softIrqQuark, trace, startTime, endTime, Type.SOFT_IRQ, softIrq);
-                    entryMap.put(softIrqQuark, entry);
-                    traceEntry.addChild(entry);
+                    entry = new DiskRequestsEntry(blockSlotQuark, trace, startTime, endTime, Type.BLOCK, blockSlot);
+                    entryMap.put(blockSlotQuark, entry);
+                    blockEntry.addChild(entry);
                 } else {
                     entry.updateEndTime(endTime);
                 }
@@ -185,14 +191,18 @@ public class ResourcesView extends AbstractTimeGraphView {
                     return;
                 }
                 if (child instanceof TimeGraphEntry) {
-                    TimeGraphEntry entry = (TimeGraphEntry) child;
-                    List<ITimeEvent> eventList = getEventList(entry, start, endTime, resolution, monitor);
-                    if (eventList != null) {
-                        for (ITimeEvent event : eventList) {
-                            entry.addEvent(event);
+                    for (ITimeGraphEntry queueSlot : child.getChildren()) {
+                        if (queueSlot instanceof TimeGraphEntry) {
+                            TimeGraphEntry entry = (TimeGraphEntry) queueSlot;
+                            List<ITimeEvent> eventList = getEventList(entry, start, endTime, resolution, monitor);
+                            if (eventList != null) {
+                                for (ITimeEvent event : eventList) {
+                                    entry.addEvent(event);
+                                }
+                            }
+                            redraw();
                         }
                     }
-                    redraw();
                 }
             }
 
@@ -204,8 +214,8 @@ public class ResourcesView extends AbstractTimeGraphView {
     protected @Nullable List<ITimeEvent> getEventList(TimeGraphEntry entry,
             long startTime, long endTime, long resolution,
             IProgressMonitor monitor) {
-        ResourcesEntry resourcesEntry = (ResourcesEntry) entry;
-        ITmfStateSystem ssq = TmfStateSystemAnalysisModule.getStateSystem(resourcesEntry.getTrace(), KernelAnalysisModule.ID);
+        DiskRequestsEntry queueSlotEntry = (DiskRequestsEntry) entry;
+        ITmfStateSystem ssq = TmfStateSystemAnalysisModule.getStateSystem(queueSlotEntry.getTrace(), InputOutputAnalysisModule.ID);
         if (ssq == null) {
             return null;
         }
@@ -215,10 +225,10 @@ public class ResourcesView extends AbstractTimeGraphView {
             return null;
         }
         List<ITimeEvent> eventList = null;
-        int quark = resourcesEntry.getQuark();
+        int quark = queueSlotEntry.getQuark();
 
         try {
-            if (resourcesEntry.getType().equals(Type.CPU)) {
+            if (queueSlotEntry.getType().equals(Type.DRIVER) || queueSlotEntry.getType().equals(Type.BLOCK)) {
                 int statusQuark;
                 try {
                     statusQuark = ssq.getQuarkRelative(quark, Attributes.STATUS);
@@ -250,73 +260,7 @@ public class ResourcesView extends AbstractTimeGraphView {
                     }
                     lastEndTime = time + duration;
                 }
-            } else if (resourcesEntry.getType().equals(Type.IRQ)) {
-                List<ITmfStateInterval> irqIntervals = StateSystemUtils.queryHistoryRange(ssq, quark, realStart, realEnd - 1, resolution, monitor);
-                eventList = new ArrayList<>(irqIntervals.size());
-                long lastEndTime = -1;
-                boolean lastIsNull = true;
-                for (ITmfStateInterval irqInterval : irqIntervals) {
-                    if (monitor.isCanceled()) {
-                        return null;
-                    }
-                    long time = irqInterval.getStartTime();
-                    long duration = irqInterval.getEndTime() - time + 1;
-                    if (!irqInterval.getStateValue().isNull()) {
-                        int cpu = irqInterval.getStateValue().unboxInt();
-                        eventList.add(new TimeEvent(entry, time, duration, cpu));
-                        lastIsNull = false;
-                    } else {
-                        if (lastEndTime == -1) {
-                            // add null event if it intersects the start time
-                            eventList.add(new NullTimeEvent(entry, time, duration));
-                        } else {
-                            if (lastEndTime != time && lastIsNull) {
-                                /* This is a special case where we want to show IRQ_ACTIVE state but we don't know the CPU (it is between two null samples) */
-                                eventList.add(new TimeEvent(entry, lastEndTime, time - lastEndTime, -1));
-                            }
-                            if (time + duration >= endTime) {
-                                // add null event if it intersects the end time
-                                eventList.add(new NullTimeEvent(entry, time, duration));
-                            }
-                        }
-                        lastIsNull = true;
-                    }
-                    lastEndTime = time + duration;
-                }
-            } else if (resourcesEntry.getType().equals(Type.SOFT_IRQ)) {
-                List<ITmfStateInterval> softIrqIntervals = StateSystemUtils.queryHistoryRange(ssq, quark, realStart, realEnd - 1, resolution, monitor);
-                eventList = new ArrayList<>(softIrqIntervals.size());
-                long lastEndTime = -1;
-                boolean lastIsNull = true;
-                for (ITmfStateInterval softIrqInterval : softIrqIntervals) {
-                    if (monitor.isCanceled()) {
-                        return null;
-                    }
-                    long time = softIrqInterval.getStartTime();
-                    long duration = softIrqInterval.getEndTime() - time + 1;
-                    if (!softIrqInterval.getStateValue().isNull()) {
-                        int cpu = softIrqInterval.getStateValue().unboxInt();
-                        eventList.add(new TimeEvent(entry, time, duration, cpu));
-                    } else {
-                        if (lastEndTime == -1) {
-                            // add null event if it intersects the start time
-                            eventList.add(new NullTimeEvent(entry, time, duration));
-                        } else {
-                            if (lastEndTime != time && lastIsNull) {
-                                /* This is a special case where we want to show IRQ_ACTIVE state but we don't know the CPU (it is between two null samples) */
-                                eventList.add(new TimeEvent(entry, lastEndTime, time - lastEndTime, -1));
-                            }
-                            if (time + duration >= endTime) {
-                                // add null event if it intersects the end time
-                                eventList.add(new NullTimeEvent(entry, time, duration));
-                            }
-                        }
-                        lastIsNull = true;
-                    }
-                    lastEndTime = time + duration;
-                }
             }
-
         } catch (AttributeNotFoundException | TimeRangeException | StateValueTypeException e) {
             e.printStackTrace();
         } catch (StateSystemDisposedException e) {
