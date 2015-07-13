@@ -22,6 +22,9 @@ import java.util.Map;
 
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.jdt.annotation.Nullable;
+import org.eclipse.jface.action.IAction;
+import org.eclipse.jface.action.IToolBarManager;
+import org.eclipse.jface.dialogs.IDialogSettings;
 import org.eclipse.tracecompass.analysis.os.linux.core.inputoutput.Attributes;
 import org.eclipse.tracecompass.analysis.os.linux.core.inputoutput.InputOutputAnalysisModule;
 import org.eclipse.tracecompass.analysis.os.linux.ui.views.diskrequests.DiskRequestsEntry.Type;
@@ -41,6 +44,7 @@ import org.eclipse.tracecompass.tmf.ui.widgets.timegraph.model.ITimeGraphEntry;
 import org.eclipse.tracecompass.tmf.ui.widgets.timegraph.model.NullTimeEvent;
 import org.eclipse.tracecompass.tmf.ui.widgets.timegraph.model.TimeEvent;
 import org.eclipse.tracecompass.tmf.ui.widgets.timegraph.model.TimeGraphEntry;
+import org.eclipse.tracecompass.internal.analysis.os.linux.ui.Activator;
 
 /**
  * Main implementation for the LTTng 2.0 kernel Resource view
@@ -93,6 +97,18 @@ public class DiskRequestsView extends AbstractTimeGraphView {
     @Override
     protected String getPrevTooltip() {
         return Messages.ResourcesView_previousResourceActionToolTipText;
+    }
+
+    @Override
+    protected void fillLocalToolBar(IToolBarManager manager) {
+        super.fillLocalToolBar(manager);
+        IDialogSettings settings = Activator.getDefault().getDialogSettings();
+        IDialogSettings section = settings.getSection(getClass().getName());
+        if (section == null) {
+            section = settings.addNewSection(getClass().getName());
+        }
+        IAction hideArrowsAction = getTimeGraphViewer().getHideArrowsAction(section);
+        manager.add(hideArrowsAction);
     }
 
     @Override
