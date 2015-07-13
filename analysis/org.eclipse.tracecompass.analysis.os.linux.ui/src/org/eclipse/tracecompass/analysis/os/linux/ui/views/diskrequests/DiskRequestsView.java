@@ -40,11 +40,13 @@ import org.eclipse.tracecompass.statesystem.core.interval.ITmfStateInterval;
 import org.eclipse.tracecompass.tmf.core.statesystem.TmfStateSystemAnalysisModule;
 import org.eclipse.tracecompass.tmf.core.trace.ITmfTrace;
 import org.eclipse.tracecompass.tmf.ui.views.timegraph.AbstractTimeGraphView;
+import org.eclipse.tracecompass.tmf.ui.widgets.timegraph.model.ILinkEvent;
 import org.eclipse.tracecompass.tmf.ui.widgets.timegraph.model.ITimeEvent;
 import org.eclipse.tracecompass.tmf.ui.widgets.timegraph.model.ITimeGraphEntry;
 import org.eclipse.tracecompass.tmf.ui.widgets.timegraph.model.NullTimeEvent;
 import org.eclipse.tracecompass.tmf.ui.widgets.timegraph.model.TimeEvent;
 import org.eclipse.tracecompass.tmf.ui.widgets.timegraph.model.TimeGraphEntry;
+import org.eclipse.tracecompass.tmf.ui.widgets.timegraph.model.TimeLinkEvent;
 
 /**
  * Main implementation for the LTTng 2.0 kernel Resource view
@@ -152,7 +154,7 @@ public class DiskRequestsView extends AbstractTimeGraphView {
                 traceEntry = new DiskRequestsEntry(trace, trace.getName(), startTime, endTime, 0);
                 traceEntry.sortChildren(comparator);
                 List<TimeGraphEntry> entryList = Collections.singletonList(traceEntry);
-                addToEntryList(parentTrace, entryList);
+                addToEntryList(trace, entryList);
             } else {
                 traceEntry.updateEndTime(endTime);
             }
@@ -285,22 +287,50 @@ public class DiskRequestsView extends AbstractTimeGraphView {
         return eventList;
     }
 
-    private static DiskRequestsEntry findEntry(List<? extends ITimeGraphEntry> entryList, String queueName, int position) {
-        for (ITimeGraphEntry traceEntry : entryList) {
-            if (!(traceEntry instanceof TimeGraphEntry)) {
+    @Override
+    protected List<ILinkEvent> getLinkList(long startTime, long endTime, long resolution, IProgressMonitor monitor) {
+        List<ILinkEvent> list = new ArrayList<>();
+        List<TimeGraphEntry> entryList = getEntryList(getTrace());
+        if (entryList == null) {
+            return list;
+        }
+
+        ITmfStateSystem ssq = TmfStateSystemAnalysisModule.getStateSystem(getTrace(), InputOutputAnalysisModule.ID);
+        if (ssq == null) {
+            return list;
+        }
+
+        long start = Math.max(startTime, ssq.getStartTime());
+        long end = Math.min(endTime, ssq.getCurrentEndTime());
+        if (end < start) {
+            return list;
+        }
+
+        ITimeGraphEntry prevEntry = findEntry(entryList, "Block Layer Queue", 4); //$NON-NLS-1$
+        ITimeGraphEntry nextEntry = findEntry(entryList, "Driver Queue" , 1); //$NON-NLS-1$
+        list.add(new TimeLinkEvent(prevEntry, nextEntry, startTime,3000000 , 2));
+        return list;
+    }
+
+    private static DiskRequestsEntry findEntry(List<TimeGraphEntry> entryList, String queueName, int position) {
+        ITimeGraphEntry traceEntry = entryList.get(0);
+        if (!(traceEntry instanceof DiskRequestsEntry)) {
+            return null;
+        }
+        for (ITimeGraphEntry queueType : traceEntry.getChildren()) {
+            if (!(queueType instanceof DiskRequestsEntry)) {
                 continue;
             }
-            for (ITimeGraphEntry queueType : traceEntry.getChildren()) {
-                if (!(queueType instanceof TimeGraphEntry)) {
-                    continue;
-                }
-                for (ITimeGraphEntry queueSlot : queueType.getChildren()) {
-                    DiskRequestsEntry entry = (DiskRequestsEntry) queueSlot;
-                    if(entry.getName().equals(queueName) && entry.getId()== position){
-                        return entry;
-                    }
+            if (!queueType.getName().equals(queueName)) {
+                continue;
+            }
+            for (ITimeGraphEntry queueSlot : queueType.getChildren()) {
+                DiskRequestsEntry entry = (DiskRequestsEntry) queueSlot;
+                if (entry.getId() == position) {
+                    return entry;
                 }
             }
+
         }
         return null;
     }
