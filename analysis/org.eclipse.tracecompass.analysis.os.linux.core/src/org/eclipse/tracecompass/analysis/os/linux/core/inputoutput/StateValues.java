@@ -29,8 +29,12 @@ public interface StateValues {
     /* CPU Status */
     static final int READING_REQUEST = 1;
     static final int WRITING_REQUEST = 2;
+    static final int IN_BLOCK_QUEUE = 3;
+    static final int IN_DRIVER_QUEUE = 4;
 
     static final ITmfStateValue READING_REQUEST_VALUE = TmfStateValue.newValueInt(READING_REQUEST);
     static final ITmfStateValue WRITING_REQUEST_VALUE = TmfStateValue.newValueInt(WRITING_REQUEST);
+    static final ITmfStateValue IN_BLOCK_QUEUE_VALUE = TmfStateValue.newValueInt(IN_BLOCK_QUEUE);
+    static final ITmfStateValue IN_DRIVER_QUEUE_VALUE = TmfStateValue.newValueInt(IN_DRIVER_QUEUE);
 
 }
