@@ -28,6 +28,7 @@ import org.eclipse.jface.dialogs.IDialogSettings;
 import org.eclipse.tracecompass.analysis.os.linux.core.inputoutput.Attributes;
 import org.eclipse.tracecompass.analysis.os.linux.core.inputoutput.InputOutputAnalysisModule;
 import org.eclipse.tracecompass.analysis.os.linux.ui.views.diskrequests.DiskRequestsEntry.Type;
+import org.eclipse.tracecompass.internal.analysis.os.linux.ui.Activator;
 import org.eclipse.tracecompass.internal.analysis.os.linux.ui.Messages;
 import org.eclipse.tracecompass.statesystem.core.ITmfStateSystem;
 import org.eclipse.tracecompass.statesystem.core.StateSystemUtils;
@@ -44,7 +45,6 @@ import org.eclipse.tracecompass.tmf.ui.widgets.timegraph.model.ITimeGraphEntry;
 import org.eclipse.tracecompass.tmf.ui.widgets.timegraph.model.NullTimeEvent;
 import org.eclipse.tracecompass.tmf.ui.widgets.timegraph.model.TimeEvent;
 import org.eclipse.tracecompass.tmf.ui.widgets.timegraph.model.TimeGraphEntry;
-import org.eclipse.tracecompass.internal.analysis.os.linux.ui.Activator;
 
 /**
  * Main implementation for the LTTng 2.0 kernel Resource view
@@ -285,4 +285,25 @@ public class DiskRequestsView extends AbstractTimeGraphView {
         return eventList;
     }
 
+    private static DiskRequestsEntry findEntry(List<? extends ITimeGraphEntry> entryList, String queueName, int position) {
+        for (ITimeGraphEntry traceEntry : entryList) {
+            if (!(traceEntry instanceof TimeGraphEntry)) {
+                continue;
+            }
+            for (ITimeGraphEntry queueType : traceEntry.getChildren()) {
+                if (!(queueType instanceof TimeGraphEntry)) {
+                    continue;
+                }
+                for (ITimeGraphEntry queueSlot : queueType.getChildren()) {
+                    DiskRequestsEntry entry = (DiskRequestsEntry) queueSlot;
+                    if(entry.getName().equals(queueName) && entry.getId()== position){
+                        return entry;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
 }
+
