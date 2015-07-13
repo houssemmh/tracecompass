@@ -29,6 +29,11 @@ public interface Attributes {
 
     /* First-level attributes */
     static final String THREADS = "Threads";
+    static final String REQUESTS = "Requests";
+    static final String SECTOR = "Sector";
+    static final String MERGED_IN = "merged_in";
+    static final String QUEUE = "queue";
+    static final String POSITION_IN_QUEUE = "position";
     static final String SYSTEM_CALL = "sys_call";
     static final String SYSTEM_CALLS_ROOT = "system_calls";
     static final String SECTORS_READ="sectors_read";
