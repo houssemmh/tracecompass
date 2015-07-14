@@ -122,10 +122,16 @@ public class DiskRequestsView extends AbstractTimeGraphView {
         if (ssq == null) {
             return;
         }
-        Comparator<ITimeGraphEntry> comparator = new Comparator<ITimeGraphEntry>() {
+        Comparator<ITimeGraphEntry> FirstTopComparator = new Comparator<ITimeGraphEntry>() {
             @Override
             public int compare(ITimeGraphEntry o1, ITimeGraphEntry o2) {
                 return ((DiskRequestsEntry) o1).compareTo(o2);
+            }
+        };
+        Comparator<ITimeGraphEntry> FirstBottomComparator = new Comparator<ITimeGraphEntry>() {
+            @Override
+            public int compare(ITimeGraphEntry o1, ITimeGraphEntry o2) {
+                return ((DiskRequestsEntry) o2).compareTo(o1);
             }
         };
 
@@ -155,7 +161,7 @@ public class DiskRequestsView extends AbstractTimeGraphView {
 
             if (traceEntry == null) {
                 traceEntry = new DiskRequestsEntry(trace, trace.getName(), startTime, endTime, 0);
-                traceEntry.sortChildren(comparator);
+                traceEntry.sortChildren(FirstTopComparator);
                 List<TimeGraphEntry> entryList = Collections.singletonList(traceEntry);
                 addToEntryList(trace, entryList);
             } else {
@@ -163,16 +169,16 @@ public class DiskRequestsView extends AbstractTimeGraphView {
             }
 
             if (driverEntry == null) {
-                driverEntry = new DiskRequestsEntry(trace, "Driver Queue", startTime, endTime, 0);
-                driverEntry.sortChildren(comparator);
+                driverEntry = new DiskRequestsEntry(trace, "Driver Queue", startTime, endTime, 1);
+                driverEntry.sortChildren(FirstTopComparator);
                 traceEntry.addChild(driverEntry);
             } else {
                 driverEntry.updateEndTime(endTime);
             }
 
             if (blockEntry == null) {
-                blockEntry = new DiskRequestsEntry(trace, "Block Layer Queue", startTime, endTime, 1);
-                blockEntry.sortChildren(comparator);
+                blockEntry = new DiskRequestsEntry(trace, "Block Layer Queue", startTime, endTime, 0);
+                blockEntry.sortChildren(FirstBottomComparator);
                 traceEntry.addChild(blockEntry);
             } else {
                 blockEntry.updateEndTime(endTime);
