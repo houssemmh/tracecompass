@@ -76,7 +76,6 @@ public class InputOutputStateProvider extends AbstractTmfStateProvider {
         Integer requestQuark;
         public int rwbs;
 
-
         public Request(Integer sector) {
             super();
             this.sector = sector;
@@ -454,6 +453,8 @@ public class InputOutputStateProvider extends AbstractTmfStateProvider {
         Integer positionInQueueQuark = ssb.getQuarkRelativeAndAdd(requestQuark, Attributes.POSITION_IN_QUEUE);
         String position = ssb.getAttributeName(request.slotQuark);
         ssb.modifyAttribute(ts, TmfStateValue.newValueLong(Integer.valueOf(position)), positionInQueueQuark);
+        Integer MergedInQuark = ssb.getQuarkRelativeAndAdd(request.requestQuark, Attributes.MERGED_IN);
+        ssb.modifyAttribute(ts, TmfStateValue.nullValue(), MergedInQuark);
 
     }
 

@@ -68,6 +68,9 @@ public class DiskRequestsView extends AbstractTimeGraphView {
     // Timeout between updates in the build thread in ms
     private static final long BUILD_UPDATE_TIMEOUT = 500;
 
+    static String DRIVER_QUEUE_NAME="Driver Queue"; //$NON-NLS-1$
+    static String BLOCK_QUEUE_NAME="Block Layer Queue"; //$NON-NLS-1$
+
     // ------------------------------------------------------------------------
     // Constructors
     // ------------------------------------------------------------------------
@@ -118,6 +121,7 @@ public class DiskRequestsView extends AbstractTimeGraphView {
 
     @Override
     protected void buildEventList(ITmfTrace trace, ITmfTrace parentTrace, IProgressMonitor monitor) {
+        @SuppressWarnings("null")
         ITmfStateSystem ssq = TmfStateSystemAnalysisModule.getStateSystem(trace, InputOutputAnalysisModule.ID);
         if (ssq == null) {
             return;
@@ -169,7 +173,7 @@ public class DiskRequestsView extends AbstractTimeGraphView {
             }
 
             if (driverEntry == null) {
-                driverEntry = new DiskRequestsEntry(trace, "Driver Queue", startTime, endTime, 1);
+                driverEntry = new DiskRequestsEntry(trace, DRIVER_QUEUE_NAME, startTime, endTime, 1);
                 driverEntry.sortChildren(FirstTopComparator);
                 traceEntry.addChild(driverEntry);
             } else {
@@ -177,7 +181,7 @@ public class DiskRequestsView extends AbstractTimeGraphView {
             }
 
             if (blockEntry == null) {
-                blockEntry = new DiskRequestsEntry(trace, "Block Layer Queue", startTime, endTime, 0);
+                blockEntry = new DiskRequestsEntry(trace, BLOCK_QUEUE_NAME, startTime, endTime, 0);
                 blockEntry.sortChildren(FirstBottomComparator);
                 traceEntry.addChild(blockEntry);
             } else {
@@ -242,6 +246,7 @@ public class DiskRequestsView extends AbstractTimeGraphView {
             long startTime, long endTime, long resolution,
             IProgressMonitor monitor) {
         DiskRequestsEntry queueSlotEntry = (DiskRequestsEntry) entry;
+        @SuppressWarnings("null")
         ITmfStateSystem ssq = TmfStateSystemAnalysisModule.getStateSystem(queueSlotEntry.getTrace(), InputOutputAnalysisModule.ID);
         if (ssq == null) {
             return null;
@@ -316,15 +321,17 @@ public class DiskRequestsView extends AbstractTimeGraphView {
             if (end < start) {
                 return list;
             }
-            //List<Integer> requestsQuarks = ssq.getQuarks(Attributes.DISKS, "sda", Attributes.REQUESTS, "*"); //$NON-NLS-1$ //$NON-NLS-2$
+            // List<Integer> requestsQuarks = ssq.getQuarks(Attributes.DISKS,
+            // "sda", Attributes.REQUESTS, "*"); //$NON-NLS-1$ //$NON-NLS-2$
             List<Integer> requestsQuarks = getRequestsInRange(start, end, resolution, monitor);
             for (int requestQuark : requestsQuarks) {
                 int queueQuark = ssq.getQuarkRelative(requestQuark, Attributes.QUEUE);
-                // adjust the query range to include the previous and following intervals
+                // adjust the query range to include the previous and following
+                // intervals
                 long qstart = Math.max(ssq.querySingleState(start, queueQuark).getStartTime() - 1, ssq.getStartTime());
                 long qend = Math.min(ssq.querySingleState(end, queueQuark).getEndTime() + 1, ssq.getCurrentEndTime());
                 List<ITmfStateInterval> queueIntervals = StateSystemUtils.queryHistoryRange(ssq, queueQuark, qstart, qend, resolution, monitor);
-                ITmfStateValue prevQueueState= TmfStateValue.nullValue();
+                ITmfStateValue prevQueueState = TmfStateValue.nullValue();
                 long prevEnd = 0;
                 for (ITmfStateInterval queueInterval : queueIntervals) {
                     if (monitor.isCanceled()) {
@@ -332,29 +339,69 @@ public class DiskRequestsView extends AbstractTimeGraphView {
                     }
                     long time = queueInterval.getStartTime();
                     if (time != prevEnd) {
-                        // don't create links where there are gaps in intervals due to the resolution
+                        // don't create links where there are gaps in intervals
+                        // due to the resolution
                         prevQueueState = TmfStateValue.nullValue();
                         prevEnd = 0;
                     }
                     ITmfStateValue queueState = queueInterval.getStateValue();
-                    if( !queueState.equals(TmfStateValue.nullValue()) && !prevQueueState.equals(TmfStateValue.nullValue()) ){
-                        int status = ssq.querySingleState(time-1, ssq.getQuarkRelative(requestQuark, Attributes.STATUS)).getStateValue().unboxInt();
-                        int prevQueue = ssq.querySingleState(time-1, ssq.getQuarkRelative(requestQuark, Attributes.QUEUE)).getStateValue().unboxInt();
-                        long prevPostion = ssq.querySingleState(time-1, ssq.getQuarkRelative(requestQuark, Attributes.POSITION_IN_QUEUE)).getStateValue().unboxLong();
+                    if (!queueState.equals(TmfStateValue.nullValue()) && !prevQueueState.equals(TmfStateValue.nullValue())) {
+                        int status = ssq.querySingleState(time - 1, ssq.getQuarkRelative(requestQuark, Attributes.STATUS)).getStateValue().unboxInt();
+                        int prevQueue = ssq.querySingleState(time - 1, ssq.getQuarkRelative(requestQuark, Attributes.QUEUE)).getStateValue().unboxInt();
+                        long prevPostion = ssq.querySingleState(time - 1, ssq.getQuarkRelative(requestQuark, Attributes.POSITION_IN_QUEUE)).getStateValue().unboxLong();
                         int queue = ssq.querySingleState(time, ssq.getQuarkRelative(requestQuark, Attributes.QUEUE)).getStateValue().unboxInt();
                         long postion = ssq.querySingleState(time, ssq.getQuarkRelative(requestQuark, Attributes.POSITION_IN_QUEUE)).getStateValue().unboxLong();
                         ITimeGraphEntry prevEntry = findEntry(entryList, prevQueue, prevPostion);
                         ITimeGraphEntry nextEntry = findEntry(entryList, queue, postion);
                         if (nextEntry != null && prevEntry != null && prevEnd > startTime) {
-                        list.add(new TimeLinkEvent(prevEntry, nextEntry, prevEnd, time - prevEnd, status));
+                            list.add(new TimeLinkEvent(prevEntry, nextEntry, prevEnd, time - prevEnd, status));
                         }
                     }
-                    prevEnd = queueInterval.getEndTime()+1;
-                    if( !queueState.equals(TmfStateValue.nullValue())){
+                    prevEnd = queueInterval.getEndTime() + 1;
+                    if (!queueState.equals(TmfStateValue.nullValue())) {
                         prevQueueState = queueState;
                     }
                 }
+                /* links for merging */
+                int mergedInQuark = ssq.getQuarkRelative(requestQuark, Attributes.MERGED_IN);
+                qstart = Math.max(ssq.querySingleState(start, mergedInQuark).getStartTime() - 1, ssq.getStartTime());
+                qend = Math.min(ssq.querySingleState(end, mergedInQuark).getEndTime() + 1, ssq.getCurrentEndTime());
+                List<ITmfStateInterval> mergedInIntervals = StateSystemUtils.queryHistoryRange(ssq, mergedInQuark, qstart, qend, resolution, monitor);
+                ITmfStateValue prevMergedInState = TmfStateValue.nullValue();
+                prevEnd = 0;
+                for (ITmfStateInterval mergedInInterval : mergedInIntervals) {
+                    if (monitor.isCanceled()) {
+                        return null;
+                    }
+                    long time = mergedInInterval.getStartTime();
+                    if (time != prevEnd) {
+                        // don't create links where there are gaps in intervals
+                        // due to the resolution
+                        prevMergedInState = TmfStateValue.nullValue();
+                        prevEnd = 0;
+                    }
+                    ITmfStateValue mergedInState = mergedInInterval.getStateValue();
+                    if (!mergedInState.equals(prevMergedInState) && !mergedInState.equals(TmfStateValue.nullValue())) {
+                        long next_sector= ssq.querySingleState(time + 1, ssq.getQuarkRelative(requestQuark, Attributes.MERGED_IN)).getStateValue().unboxLong();
+                        int nextReqQuark = ssq.getQuarkAbsolute(Attributes.DISKS, "sda", Attributes.REQUESTS, String.valueOf(next_sector)); //$NON-NLS-1$
+                        int status = ssq.querySingleState(time - 1, ssq.getQuarkRelative(requestQuark, Attributes.STATUS)).getStateValue().unboxInt();
+                        int queue = ssq.querySingleState(time - 1, ssq.getQuarkRelative(requestQuark, Attributes.QUEUE)).getStateValue().unboxInt();
+                        long postion = ssq.querySingleState(time - 1, ssq.getQuarkRelative(requestQuark, Attributes.POSITION_IN_QUEUE)).getStateValue().unboxLong();
+                        int nextQueue = ssq.querySingleState(time - 1, ssq.getQuarkRelative(nextReqQuark, Attributes.QUEUE)).getStateValue().unboxInt();
+                        long nextPostion = ssq.querySingleState(time - 1, ssq.getQuarkRelative(nextReqQuark, Attributes.POSITION_IN_QUEUE)).getStateValue().unboxLong();
+                        ITimeGraphEntry prevEntry = findEntry(entryList, queue, postion);
+                        ITimeGraphEntry nextEntry = findEntry(entryList, nextQueue, nextPostion);
+                        if (nextEntry != null && prevEntry != null && prevEnd > startTime) {
+                            list.add(new TimeLinkEvent(prevEntry, nextEntry, prevEnd, time - prevEnd, status));
+                        }
+                    }
+                    prevEnd = mergedInInterval.getEndTime() + 1;
+                    if (!mergedInState.equals(TmfStateValue.nullValue())) {
+                        prevMergedInState = mergedInState;
+                    }
+                }
             }
+
         } catch (TimeRangeException | AttributeNotFoundException | StateValueTypeException e) {
             e.printStackTrace();
         } catch (StateSystemDisposedException e) {
@@ -367,9 +414,9 @@ public class DiskRequestsView extends AbstractTimeGraphView {
 
         String queueName = null;
         if(queue==StateValues.IN_BLOCK_QUEUE){
-            queueName="Block Layer Queue"; //$NON-NLS-1$
+            queueName=BLOCK_QUEUE_NAME;
         } else if (queue==StateValues.IN_DRIVER_QUEUE){
-            queueName="Driver Queue"; //$NON-NLS-1$
+            queueName=DRIVER_QUEUE_NAME;
         } else {
             return null;
         }
@@ -413,7 +460,7 @@ public class DiskRequestsView extends AbstractTimeGraphView {
                         continue;
                     }
                     long requestSector = currentRequestInterval.getStateValue().unboxLong();
-                    int requestQuark = ssq.getQuarkAbsolute(Attributes.DISKS, "sda",Attributes.REQUESTS, String.valueOf(requestSector));
+                    int requestQuark = ssq.getQuarkAbsolute(Attributes.DISKS, "sda",Attributes.REQUESTS, String.valueOf(requestSector)); //$NON-NLS-1$
                     list.add(requestQuark);
                 }
             }

@@ -271,6 +271,7 @@ public class DiskRequestsPresentationProvider extends TimeGraphPresentationProvi
             return;
         }
 
+        @SuppressWarnings("null")
         ITmfStateSystem ss = TmfStateSystemAnalysisModule.getStateSystem(entry.getTrace(), InputOutputAnalysisModule.ID);
         if (ss == null) {
             return;
