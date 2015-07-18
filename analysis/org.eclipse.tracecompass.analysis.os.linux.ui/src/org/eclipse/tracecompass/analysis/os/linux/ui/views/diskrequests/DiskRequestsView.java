@@ -345,7 +345,7 @@ public class DiskRequestsView extends AbstractTimeGraphView {
                         prevEnd = 0;
                     }
                     ITmfStateValue queueState = queueInterval.getStateValue();
-                    if (!queueState.equals(TmfStateValue.nullValue()) && !prevQueueState.equals(TmfStateValue.nullValue())) {
+                    if (!queueState.equals(TmfStateValue.nullValue()) && !prevQueueState.equals(TmfStateValue.nullValue()) && !queueState.equals(prevQueueState)) {
                         int status = ssq.querySingleState(time - 1, ssq.getQuarkRelative(requestQuark, Attributes.STATUS)).getStateValue().unboxInt();
                         int prevQueue = ssq.querySingleState(time - 1, ssq.getQuarkRelative(requestQuark, Attributes.QUEUE)).getStateValue().unboxInt();
                         long prevPostion = ssq.querySingleState(time - 1, ssq.getQuarkRelative(requestQuark, Attributes.POSITION_IN_QUEUE)).getStateValue().unboxLong();

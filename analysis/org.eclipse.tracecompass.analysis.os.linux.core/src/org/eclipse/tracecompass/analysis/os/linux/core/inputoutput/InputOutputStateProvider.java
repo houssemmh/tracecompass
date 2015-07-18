@@ -223,9 +223,9 @@ public class InputOutputStateProvider extends AbstractTmfStateProvider {
                 disk.waitingqueue.remove(request2.sector);
                 Request final_request = merge_request(request1, request2);
                 disk.waitingqueue.put(final_request.sector, final_request);
-                remove_from_queue(ss,ts, request1,final_request);
+                //remove_from_queue(ss,ts, request1,final_request);
                 remove_from_queue(ss,ts, request2,final_request);
-                insert_in_queue(ss,ts, final_request, disk.diskname,Attributes.WAITING_QUEUE);
+                //insert_in_queue(ss,ts, final_request, disk.diskname,Attributes.WAITING_QUEUE);
                 update_queues_length(ss,ts, disk);
             }
                 break;
@@ -386,6 +386,7 @@ public class InputOutputStateProvider extends AbstractTmfStateProvider {
         req.disk = first_req.disk;
         req.nr_sector = first_req.nr_sector + second_req.nr_sector;
         req.slotQuark = first_req.slotQuark;
+        req.requestQuark = first_req.requestQuark;
         req.bios.addAll(first_req.bios);
         req.bios.addAll(second_req.bios);
         req.rwbs = first_req.rwbs;
