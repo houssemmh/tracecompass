@@ -70,6 +70,7 @@ public class DiskRequestsView extends AbstractTimeGraphView {
 
     static String DRIVER_QUEUE_NAME="Driver Queue"; //$NON-NLS-1$
     static String BLOCK_QUEUE_NAME="Block Layer Queue"; //$NON-NLS-1$
+    static String diskname = "sda"; //$NON-NLS-1$
 
     // ------------------------------------------------------------------------
     // Constructors
@@ -188,7 +189,7 @@ public class DiskRequestsView extends AbstractTimeGraphView {
                 blockEntry.updateEndTime(endTime);
             }
 
-            List<Integer> driverSlotsQuarks = ssq.getQuarks("Disks","sda",Attributes.DRIVER_QUEUE, "*"); //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
+            List<Integer> driverSlotsQuarks = ssq.getQuarks(Attributes.DISKS,diskname,Attributes.DRIVER_QUEUE, "*"); //$NON-NLS-1$
             for (Integer driverSlotQuark : driverSlotsQuarks) {
                 int driverSlot = Integer.parseInt(ssq.getAttributeName(driverSlotQuark));
                 DiskRequestsEntry entry = entryMap.get(driverSlotQuark);
@@ -200,7 +201,7 @@ public class DiskRequestsView extends AbstractTimeGraphView {
                     entry.updateEndTime(endTime);
                 }
             }
-            List<Integer> blockSlotsQuarks = ssq.getQuarks("Disks","sda",Attributes.WAITING_QUEUE, "*"); //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
+            List<Integer> blockSlotsQuarks = ssq.getQuarks(Attributes.DISKS,diskname,Attributes.WAITING_QUEUE, "*"); //$NON-NLS-1$
             for (Integer blockSlotQuark : blockSlotsQuarks) {
                 int blockSlot = Integer.parseInt(ssq.getAttributeName(blockSlotQuark));
                 DiskRequestsEntry entry = entryMap.get(blockSlotQuark);
@@ -321,8 +322,7 @@ public class DiskRequestsView extends AbstractTimeGraphView {
             if (end < start) {
                 return list;
             }
-            // List<Integer> requestsQuarks = ssq.getQuarks(Attributes.DISKS,
-            // "sda", Attributes.REQUESTS, "*"); //$NON-NLS-1$ //$NON-NLS-2$
+            // List<Integer> requestsQuarks = ssq.getQuarks(Attributes.DISKS,diskname, Attributes.REQUESTS, "*"); //$NON-NLS-1$
             List<Integer> requestsQuarks = getRequestsInRange(start, end, resolution, monitor);
             for (int requestQuark : requestsQuarks) {
                 int queueQuark = ssq.getQuarkRelative(requestQuark, Attributes.QUEUE);
@@ -383,7 +383,7 @@ public class DiskRequestsView extends AbstractTimeGraphView {
                     ITmfStateValue mergedInState = mergedInInterval.getStateValue();
                     if (!mergedInState.equals(prevMergedInState) && !mergedInState.equals(TmfStateValue.nullValue())) {
                         long next_sector= ssq.querySingleState(time + 1, ssq.getQuarkRelative(requestQuark, Attributes.MERGED_IN)).getStateValue().unboxLong();
-                        int nextReqQuark = ssq.getQuarkAbsolute(Attributes.DISKS, "sda", Attributes.REQUESTS, String.valueOf(next_sector)); //$NON-NLS-1$
+                        int nextReqQuark = ssq.getQuarkAbsolute(Attributes.DISKS, diskname, Attributes.REQUESTS, String.valueOf(next_sector));
                         int status = ssq.querySingleState(time - 1, ssq.getQuarkRelative(requestQuark, Attributes.STATUS)).getStateValue().unboxInt();
                         int queue = ssq.querySingleState(time - 1, ssq.getQuarkRelative(requestQuark, Attributes.QUEUE)).getStateValue().unboxInt();
                         long postion = ssq.querySingleState(time - 1, ssq.getQuarkRelative(requestQuark, Attributes.POSITION_IN_QUEUE)).getStateValue().unboxLong();
@@ -450,7 +450,7 @@ public class DiskRequestsView extends AbstractTimeGraphView {
         if (ssq == null) {
             return list;
         }
-        List<Integer> currentRequestsQuarks = ssq.getQuarks(Attributes.DISKS, "sda",Attributes.WAITING_QUEUE, "*",Attributes.CURRENT_REQUEST);  //$NON-NLS-1$//$NON-NLS-2$
+        List<Integer> currentRequestsQuarks = ssq.getQuarks(Attributes.DISKS, diskname,Attributes.WAITING_QUEUE, "*",Attributes.CURRENT_REQUEST);  //$NON-NLS-1$
 
         try {
             for (int currentRequestQuark : currentRequestsQuarks) {
@@ -460,7 +460,7 @@ public class DiskRequestsView extends AbstractTimeGraphView {
                         continue;
                     }
                     long requestSector = currentRequestInterval.getStateValue().unboxLong();
-                    int requestQuark = ssq.getQuarkAbsolute(Attributes.DISKS, "sda",Attributes.REQUESTS, String.valueOf(requestSector)); //$NON-NLS-1$
+                    int requestQuark = ssq.getQuarkAbsolute(Attributes.DISKS, diskname,Attributes.REQUESTS, String.valueOf(requestSector));
                     list.add(requestQuark);
                 }
             }

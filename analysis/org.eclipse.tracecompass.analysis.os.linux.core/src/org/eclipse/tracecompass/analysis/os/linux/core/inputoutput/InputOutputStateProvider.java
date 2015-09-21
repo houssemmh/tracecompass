@@ -1,7 +1,6 @@
 package org.eclipse.tracecompass.analysis.os.linux.core.inputoutput;
 
 import static org.eclipse.tracecompass.common.core.NonNullUtils.checkNotNull;
-
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
