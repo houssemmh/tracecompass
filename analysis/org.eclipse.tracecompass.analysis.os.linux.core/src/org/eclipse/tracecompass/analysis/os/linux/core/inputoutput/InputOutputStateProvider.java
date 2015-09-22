@@ -310,12 +310,12 @@ public class InputOutputStateProvider extends AbstractTmfStateProvider {
                         if (readList.contains(syscallValue)) {
                             Integer currentProcessNode = ss.getQuarkRelativeAndAdd(getNodeThreads(ss), String.valueOf(pid));
                             Integer readQuark = ss.getQuarkRelativeAndAdd(currentProcessNode, Attributes.BYTES_READ);
-                            Integer writtenQuark = ss.getQuarkRelativeAndAdd(currentProcessNode, Attributes.BYTES_WRITTEN);
+                            ss.getQuarkRelativeAndAdd(currentProcessNode, Attributes.BYTES_WRITTEN);
                             TmfStateValue readValue = TmfStateValue.newValueInt(increment(ss,readQuark, ret));
                             ss.modifyAttribute(ts, readValue, readQuark);
                         } else if (writeList.contains(syscallValue)) {
                             Integer currentProcessNode = ss.getQuarkRelativeAndAdd(getNodeThreads(ss), String.valueOf(pid));
-                            Integer readQuark = ss.getQuarkRelativeAndAdd(currentProcessNode, Attributes.BYTES_READ);
+                            ss.getQuarkRelativeAndAdd(currentProcessNode, Attributes.BYTES_READ);
                             Integer writtenQuark = ss.getQuarkRelativeAndAdd(currentProcessNode, Attributes.BYTES_WRITTEN);
                             TmfStateValue writtenValue = TmfStateValue.newValueInt(increment(ss,writtenQuark, ret));
                             ss.modifyAttribute(ts, writtenValue, writtenQuark);
