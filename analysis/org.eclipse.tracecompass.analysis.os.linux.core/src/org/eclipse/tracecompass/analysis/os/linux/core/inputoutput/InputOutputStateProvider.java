@@ -199,10 +199,10 @@ public class InputOutputStateProvider extends AbstractTmfStateProvider {
             }
                 break;
 
-            case LttngStrings.BLOCK_RQ_MERGE: {
+            case LttngStrings.ELV_MERGE_REQUESTS: {
                 Integer phydisk = ((Long)content.getField(LttngStrings.DEV).getValue()).intValue();
-                Integer sector1 = ((Long)content.getField(LttngStrings.SECTOR).getValue()).intValue();
-                Integer sector2 = ((Long)content.getField("sector2").getValue()).intValue(); //$NON-NLS-1$
+                Integer sector1 = ((Long)content.getField(LttngStrings.RQ_SECTOR).getValue()).intValue();
+                Integer sector2 = ((Long)content.getField(LttngStrings.NEXTRQ_SECTOR).getValue()).intValue();
 
                 Disk disk = disks.get(phydisk);
                 if (disk == null) {
