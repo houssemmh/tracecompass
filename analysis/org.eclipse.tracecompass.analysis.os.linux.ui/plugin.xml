@@ -45,6 +45,22 @@
             name="Disk I/O Activity"
             restorable="true">
       </view>
+      <view
+            category="org.eclipse.linuxtools.lttng2.ui.views.category"
+            class="org.eclipse.tracecompass.analysis.os.linux.ui.views.blockioqueue.BlockIOQueueView"
+            icon="icons/eview16/resources_view.gif"
+            id="org.eclipse.tracecompass.analysis.os.linux.views.blockioqueue"
+            name="Block IO Queue"
+            restorable="true">
+      </view>
+      <view
+            category="org.eclipse.linuxtools.lttng2.ui.views.category"
+            class="org.eclipse.tracecompass.analysis.os.linux.ui.views.driverioqueue.DriverIOQueueView"
+            icon="icons/eview16/resources_view.gif"
+            id="org.eclipse.tracecompass.analysis.os.linux.views.driverioqueue"
+            name="Driver IO Queue"
+            restorable="true">
+      </view>
    </extension>
    <extension
          point="org.eclipse.linuxtools.tmf.core.analysis">
@@ -79,6 +95,20 @@
       <output
             class="org.eclipse.tracecompass.tmf.ui.analysis.TmfAnalysisViewOutput"
             id="org.eclipse.tracecompass.analysis.os.linux.views.diskioactivity">
+         <analysisModuleClass
+               class="org.eclipse.tracecompass.analysis.os.linux.core.inputoutput.InputOutputAnalysisModule">
+         </analysisModuleClass>
+      </output>
+      <output
+            class="org.eclipse.tracecompass.tmf.ui.analysis.TmfAnalysisViewOutput"
+            id="org.eclipse.tracecompass.analysis.os.linux.views.blockioqueue">
+         <analysisModuleClass
+               class="org.eclipse.tracecompass.analysis.os.linux.core.inputoutput.InputOutputAnalysisModule">
+         </analysisModuleClass>
+      </output>
+      <output
+            class="org.eclipse.tracecompass.tmf.ui.analysis.TmfAnalysisViewOutput"
+            id="org.eclipse.tracecompass.analysis.os.linux.views.driverioqueue">
          <analysisModuleClass
                class="org.eclipse.tracecompass.analysis.os.linux.core.inputoutput.InputOutputAnalysisModule">
          </analysisModuleClass>
