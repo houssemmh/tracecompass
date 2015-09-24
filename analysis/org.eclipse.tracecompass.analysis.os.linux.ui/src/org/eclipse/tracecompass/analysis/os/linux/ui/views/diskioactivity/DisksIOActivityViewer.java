@@ -28,6 +28,11 @@ import org.eclipse.tracecompass.tmf.core.trace.TmfTraceUtils;
 import org.eclipse.tracecompass.tmf.ui.viewers.xycharts.linecharts.TmfCommonXLineChartViewer;
 import org.eclipse.swt.widgets.Composite;
 
+/*
+ * TODO: We need to change the way we increment written and read values.
+ * Incrementing at the block_rq_event is not correct. We need to estimate
+ * reading and writing speed by looking at requests between t1 and t2.
+ */
 /**
  *
  * @author Houssem Daoud
@@ -40,7 +45,8 @@ public class DisksIOActivityViewer extends TmfCommonXLineChartViewer {
     // Timeout between updates in the updateData thread
     private static final long BUILD_UPDATE_TIMEOUT = 500;
     private static final double RESOLUTION = 0.4;
-    private static final int KB_TO_SECTOR = 2;
+    private static final int MB_TO_SECTOR = 2 * 1024;
+    private static final int SECOND_TO_NANOSECOND = (int) Math.pow(10, 9);
 
     /**
      * Constructor
@@ -103,20 +109,15 @@ public class DisksIOActivityViewer extends TmfCommonXLineChartViewer {
 
                 /* Initialize quarks and series names */
                 double[] fYValuesWritten = new double[xvalues.length];
-
                 double[] fYValuesRead = new double[xvalues.length];
-
                 String serieNameWritten = new String(diskname+" write").trim(); //$NON-NLS-1$
                 String seriesNameRead = new String(diskname+" read").trim(); //$NON-NLS-1$
-
                 /*
                  * TODO: It should only show active threads in the time range.
                  * If a tid does not have any memory value (only 1 interval in
                  * the time range with value null or 0), then its series should
                  * not be displayed.
                  */
-                double yvalueWritten = 0.0;
-                double yvalueRead = 0.0;
                 double prevX = xvalues[0];
                 long prevTime = (long) prevX + offset;
                 /*
@@ -134,12 +135,10 @@ public class DisksIOActivityViewer extends TmfCommonXLineChartViewer {
                     time = Math.max(traceStart, time);
                     time = Math.min(traceEnd, time);
                     try {
-                        yvalueWritten = ss.querySingleState(time, writtenQuark).getStateValue().unboxLong()
-                                - ss.querySingleState(prevTime, writtenQuark).getStateValue().unboxLong();
-                        fYValuesWritten[i] = yvalueWritten / KB_TO_SECTOR;
-                        yvalueRead = ss.querySingleState(time, readQuarks).getStateValue().unboxLong()
-                                - ss.querySingleState(prevTime, readQuarks).getStateValue().unboxLong();
-                        fYValuesRead[i] = yvalueRead / KB_TO_SECTOR;
+                        fYValuesWritten[i] = (double)(ss.querySingleState(time, writtenQuark).getStateValue().unboxLong()
+                                - ss.querySingleState(prevTime, writtenQuark).getStateValue().unboxLong())/(time-prevTime)*SECOND_TO_NANOSECOND /MB_TO_SECTOR;
+                        fYValuesRead[i] = (double)(ss.querySingleState(time, readQuarks).getStateValue().unboxLong()
+                                - ss.querySingleState(prevTime, readQuarks).getStateValue().unboxLong())/(time-prevTime)*SECOND_TO_NANOSECOND /MB_TO_SECTOR;
                     } catch (TimeRangeException e) {
                         fYValuesWritten[i] = 0;
                         fYValuesRead[i] = 0;
