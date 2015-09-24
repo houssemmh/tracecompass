@@ -36,10 +36,9 @@ public interface LttngStrings {
     static final String SYSTEM_WRITEV = "syscall_entry_writev";
     static final String SYSTEM_PWRITE = "syscall_entry_pwrite";
     static final String SYSTEM_PWRITEV = "syscall_entry_pwritev";
-
     static final String BLOCK_RQ_INSERT= "block_rq_insert";
     static final String BLOCK_RQ_ISSUE= "block_rq_issue";
-    static final String BLOCK_RQ_MERGE= "block_rq_merge";
+    static final String ELV_MERGE_REQUESTS= "addons_elv_merge_requests";
     static final String BLOCK_RQ_COMPLETE= "block_rq_complete";
     static final String BLOCK_GETRQ= "block_getrq";
     static final String LTTNG_STATEDUMP_BLOCK_DEVICE= "lttng_statedump_block_device";
@@ -56,5 +55,7 @@ public interface LttngStrings {
     static final String DEV="dev";
     static final String SECTOR="sector";
     static final String NR_SECTOR="nr_sector";
+    static final String RQ_SECTOR= "rq_sector";
+    static final String NEXTRQ_SECTOR= "nextrq_sector";
     }
 
