@@ -13,6 +13,7 @@
 
 package org.eclipse.tracecompass.analysis.os.linux.ui.views.diskioactivity;
 
+import java.util.List;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.tracecompass.analysis.os.linux.core.inputoutput.Attributes;
 import org.eclipse.tracecompass.internal.tmf.core.Activator;
@@ -22,6 +23,8 @@ import org.eclipse.tracecompass.statesystem.core.exceptions.AttributeNotFoundExc
 import org.eclipse.tracecompass.statesystem.core.exceptions.StateSystemDisposedException;
 import org.eclipse.tracecompass.statesystem.core.exceptions.StateValueTypeException;
 import org.eclipse.tracecompass.statesystem.core.exceptions.TimeRangeException;
+import org.eclipse.tracecompass.statesystem.core.interval.ITmfStateInterval;
+import org.eclipse.tracecompass.statesystem.core.statevalue.TmfStateValue;
 import org.eclipse.tracecompass.tmf.core.statesystem.TmfStateSystemAnalysisModule;
 import org.eclipse.tracecompass.tmf.core.trace.ITmfTrace;
 import org.eclipse.tracecompass.tmf.core.trace.TmfTraceUtils;
@@ -44,7 +47,7 @@ public class DisksIOActivityViewer extends TmfCommonXLineChartViewer {
     private final String diskname = new String("sda"); //$NON-NLS-1$
     // Timeout between updates in the updateData thread
     private static final long BUILD_UPDATE_TIMEOUT = 500;
-    private static final double RESOLUTION = 0.4;
+    private static final double RESOLUTION = 0.2;
     private static final int MB_TO_SECTOR = 2 * 1024;
     private static final int SECOND_TO_NANOSECOND = (int) Math.pow(10, 9);
 
@@ -102,7 +105,7 @@ public class DisksIOActivityViewer extends TmfCommonXLineChartViewer {
                 int disksQuark = ss.getQuarkAbsolute(Attributes.DISKS);
                 int diskQuark = ss.getQuarkRelative(disksQuark, diskname);
                 int writtenQuark = ss.getQuarkRelative(diskQuark, Attributes.SECTORS_WRITTEN);
-                int readQuarks = ss.getQuarkRelative(diskQuark, Attributes.SECTORS_READ);
+                //int readQuarks = ss.getQuarkRelative(diskQuark, Attributes.SECTORS_READ);
                 long traceStart = getStartTime();
                 long traceEnd = getEndTime();
                 long offset = this.getTimeOffset();
@@ -137,8 +140,7 @@ public class DisksIOActivityViewer extends TmfCommonXLineChartViewer {
                     try {
                         fYValuesWritten[i] = (double)(ss.querySingleState(time, writtenQuark).getStateValue().unboxLong()
                                 - ss.querySingleState(prevTime, writtenQuark).getStateValue().unboxLong())/(time-prevTime)*SECOND_TO_NANOSECOND /MB_TO_SECTOR;
-                        fYValuesRead[i] = (double)(ss.querySingleState(time, readQuarks).getStateValue().unboxLong()
-                                - ss.querySingleState(prevTime, readQuarks).getStateValue().unboxLong())/(time-prevTime)*SECOND_TO_NANOSECOND /MB_TO_SECTOR;
+                        fYValuesRead[i] = getSectorsReadInRange(prevTime, time)/(time-prevTime)*SECOND_TO_NANOSECOND /MB_TO_SECTOR;
                     } catch (TimeRangeException e) {
                         fYValuesWritten[i] = 0;
                         fYValuesRead[i] = 0;
@@ -156,6 +158,89 @@ public class DisksIOActivityViewer extends TmfCommonXLineChartViewer {
         } catch (AttributeNotFoundException | StateValueTypeException | StateSystemDisposedException e) {
             Activator.logError("Error updating the data of the Memory usage view", e); //$NON-NLS-1$
         }
+    }
+
+    double getSectorsReadInRange(long start,long end){
+        double currentCount = 0;
+        ITmfStateSystem ss = fModule.getStateSystem();
+        if (ss == null) {
+            return -1;
+        }
+        long startTime = Math.max(start, ss.getStartTime());
+        long endTime = Math.min(end, ss.getCurrentEndTime());
+        if (endTime < startTime) {
+            return -1;
+        }
+
+
+        try {
+            List<ITmfStateInterval> endState = ss.queryFullState(endTime);
+            List<ITmfStateInterval> startState = ss.queryFullState(startTime);
+            double countAtEnd = endState.get(ss.getQuarkAbsolute(Attributes.DISKS,diskname,Attributes.SECTORS_READ)).getStateValue().unboxLong();
+            double countAtStart = startState.get(ss.getQuarkAbsolute(Attributes.DISKS,diskname,Attributes.SECTORS_READ)).getStateValue().unboxLong();
+            if (countAtStart == -1) {
+                countAtStart = 0;
+            }
+            if (countAtEnd == -1) {
+                countAtEnd = 0;
+            }
+            List<Integer> currentRequestsQuarks = ss.getQuarks(Attributes.DISKS, diskname,Attributes.DRIVER_QUEUE, "*",Attributes.CURRENT_REQUEST);  //$NON-NLS-1$
+            for (Integer currentRequestQuark : currentRequestsQuarks) {
+                if (!startState.get(currentRequestQuark).getStateValue().equals(TmfStateValue.nullValue())) {
+                    long request_sector = startState.get(currentRequestQuark).getStateValue().unboxLong();
+                    int reqQuark = ss.getQuarkAbsolute(Attributes.DISKS, diskname, Attributes.REQUESTS, String.valueOf(request_sector));
+                    int statusQuark = ss.getQuarkRelative(reqQuark, Attributes.STATUS);
+                    int status = startState.get(statusQuark).getStateValue().unboxInt();
+                    int sizeQuark = ss.getQuarkRelative(reqQuark, Attributes.REQUEST_SIZE);
+                    long size = startState.get(sizeQuark).getStateValue().unboxLong();
+                    if (status == 1) {
+                        long runningTime = startState.get(currentRequestQuark).getEndTime() - startState.get(currentRequestQuark).getStartTime();
+                        long runningEnd = startState.get(currentRequestQuark).getEndTime();
+                        countAtStart = interpolateCount(countAtStart, startTime, runningEnd, runningTime, size);
+                    }
+                }
+                if (!endState.get(currentRequestQuark).getStateValue().equals(TmfStateValue.nullValue())) {
+                    long request_sector = endState.get(currentRequestQuark).getStateValue().unboxLong();
+                    int reqQuark = ss.getQuarkAbsolute(Attributes.DISKS, diskname, Attributes.REQUESTS, String.valueOf(request_sector));
+                    int statusQuark = ss.getQuarkRelative(reqQuark, Attributes.STATUS);
+                    int status = endState.get(statusQuark).getStateValue().unboxInt();
+                    int sizeQuark = ss.getQuarkRelative(reqQuark, Attributes.REQUEST_SIZE);
+                    long size = startState.get(sizeQuark).getStateValue().unboxLong();
+                    if (status == 1) {
+                        long runningTime = endState.get(currentRequestQuark).getEndTime() - endState.get(currentRequestQuark).getStartTime();
+                        long runningEnd = endState.get(currentRequestQuark).getEndTime();
+                        countAtEnd = interpolateCount(countAtEnd, endTime, runningEnd, runningTime, size);
+                    }
+                }
+            }
+            currentCount = countAtEnd - countAtStart;
+        } catch (StateSystemDisposedException e) {
+            e.printStackTrace();
+        } catch (AttributeNotFoundException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        }
+        return currentCount;
+    }
+    private static double interpolateCount(double count, long ts, long runningEnd, long runningTime, long size) {
+        double newCount = count;
+
+        /* sanity check */
+        if (runningTime > 0) {
+
+            long runningStart = runningEnd - runningTime;
+
+            if (ts < runningStart) {
+                /*
+                 * This interval was not started, this can happen if the current
+                 * running thread is unknown and we execute this method. It just
+                 * means that this process was not the one running
+                 */
+                return newCount;
+            }
+            newCount += (double)(ts - runningStart) * (double)size / (runningTime);
+        }
+        return newCount;
     }
 
 }

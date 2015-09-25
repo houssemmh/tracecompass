@@ -276,6 +276,7 @@ public class InputOutputStateProvider extends AbstractTmfStateProvider {
                 disk.waitingqueue.remove(request.sector);
                 remove_from_queue(ss,ts, request,null);
                 disk.driverqueue.put(request.sector, request);
+                request.nr_sector = nr_sector;
                 insert_in_queue(ss,ts, request, disk.diskname,Attributes.DRIVER_QUEUE);
                 update_queues_length(ss,ts, disk);
             }
@@ -448,6 +449,8 @@ public class InputOutputStateProvider extends AbstractTmfStateProvider {
         request.requestQuark = requestQuark;
         Integer requestStatusQuark = ssb.getQuarkRelativeAndAdd(requestQuark, Attributes.STATUS);
         ssb.modifyAttribute(ts, statusState, requestStatusQuark);
+        Integer requestSizeQuark = ssb.getQuarkRelativeAndAdd(requestQuark, Attributes.REQUEST_SIZE);
+        ssb.modifyAttribute(ts, TmfStateValue.newValueLong(request.nr_sector), requestSizeQuark);
         Integer requestCurrentQueueQuark = ssb.getQuarkRelativeAndAdd(requestQuark, Attributes.QUEUE);
         ssb.modifyAttribute(ts, currentQueueState, requestCurrentQueueQuark);
         Integer positionInQueueQuark = ssb.getQuarkRelativeAndAdd(requestQuark, Attributes.POSITION_IN_QUEUE);
