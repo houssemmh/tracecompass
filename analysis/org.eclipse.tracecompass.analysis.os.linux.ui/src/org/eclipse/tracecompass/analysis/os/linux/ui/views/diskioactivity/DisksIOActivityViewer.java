@@ -172,47 +172,43 @@ public class DisksIOActivityViewer extends TmfCommonXLineChartViewer {
             return -1;
         }
 
-
+        System.out.println("getsectorsinrange " + startTime + " "+ endTime);
         try {
             List<ITmfStateInterval> endState = ss.queryFullState(endTime);
             List<ITmfStateInterval> startState = ss.queryFullState(startTime);
             double countAtEnd = endState.get(ss.getQuarkAbsolute(Attributes.DISKS,diskname,Attributes.SECTORS_READ)).getStateValue().unboxLong();
             double countAtStart = startState.get(ss.getQuarkAbsolute(Attributes.DISKS,diskname,Attributes.SECTORS_READ)).getStateValue().unboxLong();
-            if (countAtStart == -1) {
-                countAtStart = 0;
-            }
-            if (countAtEnd == -1) {
-                countAtEnd = 0;
-            }
-            List<Integer> currentRequestsQuarks = ss.getQuarks(Attributes.DISKS, diskname,Attributes.DRIVER_QUEUE, "*",Attributes.CURRENT_REQUEST);  //$NON-NLS-1$
-            for (Integer currentRequestQuark : currentRequestsQuarks) {
-                if (!startState.get(currentRequestQuark).getStateValue().equals(TmfStateValue.nullValue())) {
-                    long request_sector = startState.get(currentRequestQuark).getStateValue().unboxLong();
-                    int reqQuark = ss.getQuarkAbsolute(Attributes.DISKS, diskname, Attributes.REQUESTS, String.valueOf(request_sector));
-                    int statusQuark = ss.getQuarkRelative(reqQuark, Attributes.STATUS);
-                    int status = startState.get(statusQuark).getStateValue().unboxInt();
-                    int sizeQuark = ss.getQuarkRelative(reqQuark, Attributes.REQUEST_SIZE);
-                    long size = startState.get(sizeQuark).getStateValue().unboxLong();
-                    if (status == 1) {
-                        long runningTime = startState.get(currentRequestQuark).getEndTime() - startState.get(currentRequestQuark).getStartTime();
-                        long runningEnd = startState.get(currentRequestQuark).getEndTime();
-                        countAtStart = interpolateCount(countAtStart, startTime, runningEnd, runningTime, size);
+            List<Integer> driverslotsQuarks = ss.getQuarks(Attributes.DISKS, diskname,Attributes.DRIVER_QUEUE, "*");  //$NON-NLS-1$
+            for (Integer driverSlotQuark : driverslotsQuarks) {
+                Integer currentRequestQuark = ss.getQuarkRelative(driverSlotQuark, Attributes.CURRENT_REQUEST);
+                int sizeQuark = ss.getQuarkRelative(driverSlotQuark, Attributes.REQUEST_SIZE);
+                int statusQuark = ss.getQuarkRelative(driverSlotQuark, Attributes.STATUS);
+                //interpoler à startTime
+                long startrequest_sector = startState.get(currentRequestQuark).getStateValue().unboxLong();
+                if( startrequest_sector != -1) {
+                    if (startState.get(statusQuark).getStateValue().unboxInt() == 1) {
+                    System.out.println("start " +startrequest_sector);
+                    long runningTime = startState.get(currentRequestQuark).getEndTime()- startState.get(currentRequestQuark).getStartTime();
+                    long runningEnd = startState.get(currentRequestQuark).getEndTime();
+                    long startsize = startState.get(sizeQuark).getStateValue().unboxLong();
+                    countAtStart = interpolateCount(countAtStart, startTime, runningEnd, runningTime, startsize);
                     }
                 }
-                if (!endState.get(currentRequestQuark).getStateValue().equals(TmfStateValue.nullValue())) {
-                    long request_sector = endState.get(currentRequestQuark).getStateValue().unboxLong();
-                    int reqQuark = ss.getQuarkAbsolute(Attributes.DISKS, diskname, Attributes.REQUESTS, String.valueOf(request_sector));
-                    int statusQuark = ss.getQuarkRelative(reqQuark, Attributes.STATUS);
-                    int status = endState.get(statusQuark).getStateValue().unboxInt();
-                    int sizeQuark = ss.getQuarkRelative(reqQuark, Attributes.REQUEST_SIZE);
-                    long size = startState.get(sizeQuark).getStateValue().unboxLong();
-                    if (status == 1) {
-                        long runningTime = endState.get(currentRequestQuark).getEndTime() - endState.get(currentRequestQuark).getStartTime();
-                        long runningEnd = endState.get(currentRequestQuark).getEndTime();
-                        countAtEnd = interpolateCount(countAtEnd, endTime, runningEnd, runningTime, size);
+                //interpoler à EndTime
+                long endrequest_sector = endState.get(currentRequestQuark).getStateValue().unboxLong();
+                if( endrequest_sector != -1) {
+                    if (startState.get(statusQuark).getStateValue().unboxInt() == 1) {
+                    System.out.println("end   " +endrequest_sector);
+                    long runningTime = endState.get(currentRequestQuark).getEndTime()- endState.get(currentRequestQuark).getStartTime();
+                    long runningEnd = endState.get(currentRequestQuark).getEndTime();
+                    long endsize = endState.get(sizeQuark).getStateValue().unboxLong();
+                    countAtEnd = interpolateCount(countAtEnd, endTime, runningEnd, runningTime, endsize);
                     }
                 }
             }
+            System.out.println("countAtStart " + countAtStart);
+            System.out.println("countAtEnd   " + countAtEnd);
+            System.out.println();
             currentCount = countAtEnd - countAtStart;
         } catch (StateSystemDisposedException e) {
             e.printStackTrace();
@@ -238,7 +234,12 @@ public class DisksIOActivityViewer extends TmfCommonXLineChartViewer {
                  */
                 return newCount;
             }
-            newCount += (double)(ts - runningStart) * (double)size / (runningTime);
+            /*
+            if (interpolation < 0) {
+                System.out.println();
+            }*/
+            double interpolation= (double)(ts - runningStart) * (double)size / (runningTime);
+            newCount += interpolation;
         }
         return newCount;
     }
