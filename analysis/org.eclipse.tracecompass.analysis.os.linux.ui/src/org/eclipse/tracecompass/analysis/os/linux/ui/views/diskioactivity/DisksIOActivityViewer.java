@@ -18,10 +18,10 @@ import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.tracecompass.analysis.os.linux.core.inputoutput.Attributes;
 import org.eclipse.tracecompass.internal.tmf.core.Activator;
 import org.eclipse.tracecompass.analysis.os.linux.core.inputoutput.InputOutputAnalysisModule;
+import org.eclipse.tracecompass.analysis.os.linux.core.inputoutput.StateValues;
 import org.eclipse.tracecompass.statesystem.core.ITmfStateSystem;
 import org.eclipse.tracecompass.statesystem.core.exceptions.AttributeNotFoundException;
 import org.eclipse.tracecompass.statesystem.core.exceptions.StateSystemDisposedException;
-import org.eclipse.tracecompass.statesystem.core.exceptions.StateValueTypeException;
 import org.eclipse.tracecompass.statesystem.core.exceptions.TimeRangeException;
 import org.eclipse.tracecompass.statesystem.core.interval.ITmfStateInterval;
 import org.eclipse.tracecompass.tmf.core.statesystem.TmfStateSystemAnalysisModule;
@@ -137,9 +137,8 @@ public class DisksIOActivityViewer extends TmfCommonXLineChartViewer {
                     time = Math.max(traceStart, time);
                     time = Math.min(traceEnd, time);
                     try {
-                        fYValuesWritten[i] = (double)(ss.querySingleState(time, writtenQuark).getStateValue().unboxLong()
-                                - ss.querySingleState(prevTime, writtenQuark).getStateValue().unboxLong())/(time-prevTime)*SECOND_TO_NANOSECOND /MB_TO_SECTOR;
-                        fYValuesRead[i] = getSectorsReadInRange(prevTime, time)/(time-prevTime)*SECOND_TO_NANOSECOND /MB_TO_SECTOR;
+                        fYValuesWritten[i] = getSectorsInRange(prevTime, time,StateValues.WRITING_REQUEST)/(time-prevTime)*SECOND_TO_NANOSECOND /MB_TO_SECTOR;
+                        fYValuesRead[i] = getSectorsInRange(prevTime, time,StateValues.READING_REQUEST)/(time-prevTime)*SECOND_TO_NANOSECOND /MB_TO_SECTOR;
                     } catch (TimeRangeException e) {
                         fYValuesWritten[i] = 0;
                         fYValuesRead[i] = 0;
@@ -154,12 +153,19 @@ public class DisksIOActivityViewer extends TmfCommonXLineChartViewer {
                 updateDisplay();
 
             }
-        } catch (AttributeNotFoundException | StateValueTypeException | StateSystemDisposedException e) {
+        } catch (AttributeNotFoundException e) {
             Activator.logError("Error updating the data of the Memory usage view", e); //$NON-NLS-1$
         }
     }
 
-    double getSectorsReadInRange(long start,long end){
+    double getSectorsInRange(long start,long end,int rw){
+
+        String rw_attribute_name = null;
+        if(rw == StateValues.READING_REQUEST){
+            rw_attribute_name = Attributes.SECTORS_READ;
+        } else {
+            rw_attribute_name = Attributes.SECTORS_WRITTEN;
+        }
         double currentCount = 0;
         ITmfStateSystem ss = fModule.getStateSystem();
         if (ss == null) {
@@ -175,8 +181,14 @@ public class DisksIOActivityViewer extends TmfCommonXLineChartViewer {
         try {
             List<ITmfStateInterval> endState = ss.queryFullState(endTime);
             List<ITmfStateInterval> startState = ss.queryFullState(startTime);
-            double countAtEnd = endState.get(ss.getQuarkAbsolute(Attributes.DISKS,diskname,Attributes.SECTORS_READ)).getStateValue().unboxLong();
-            double countAtStart = startState.get(ss.getQuarkAbsolute(Attributes.DISKS,diskname,Attributes.SECTORS_READ)).getStateValue().unboxLong();
+            double countAtEnd = endState.get(ss.getQuarkAbsolute(Attributes.DISKS,diskname,rw_attribute_name)).getStateValue().unboxLong();
+            if (countAtEnd == -1) {
+                countAtEnd = 0;
+            }
+            double countAtStart = startState.get(ss.getQuarkAbsolute(Attributes.DISKS,diskname,rw_attribute_name)).getStateValue().unboxLong();
+            if (countAtStart == -1) {
+                countAtStart = 0;
+            }
             List<Integer> driverslotsQuarks = ss.getQuarks(Attributes.DISKS, diskname,Attributes.DRIVER_QUEUE, "*");  //$NON-NLS-1$
             for (Integer driverSlotQuark : driverslotsQuarks) {
                 Integer currentRequestQuark = ss.getQuarkRelative(driverSlotQuark, Attributes.CURRENT_REQUEST);
@@ -185,7 +197,7 @@ public class DisksIOActivityViewer extends TmfCommonXLineChartViewer {
                 //interpoler à startTime
                 long startrequest_sector = startState.get(currentRequestQuark).getStateValue().unboxLong();
                 if( startrequest_sector != -1) {
-                    if (startState.get(statusQuark).getStateValue().unboxInt() == 1) {
+                    if (startState.get(statusQuark).getStateValue().unboxInt() == rw) {
                     System.out.println("start " +startrequest_sector);
                     long runningTime = startState.get(currentRequestQuark).getEndTime()- startState.get(currentRequestQuark).getStartTime();
                     long runningEnd = startState.get(currentRequestQuark).getEndTime();
@@ -196,7 +208,7 @@ public class DisksIOActivityViewer extends TmfCommonXLineChartViewer {
                 //interpoler à EndTime
                 long endrequest_sector = endState.get(currentRequestQuark).getStateValue().unboxLong();
                 if( endrequest_sector != -1) {
-                    if (startState.get(statusQuark).getStateValue().unboxInt() == 1) {
+                    if (startState.get(statusQuark).getStateValue().unboxInt() == rw) {
                     System.out.println("end   " +endrequest_sector);
                     long runningTime = endState.get(currentRequestQuark).getEndTime()- endState.get(currentRequestQuark).getStartTime();
                     long runningEnd = endState.get(currentRequestQuark).getEndTime();
@@ -218,13 +230,12 @@ public class DisksIOActivityViewer extends TmfCommonXLineChartViewer {
         return currentCount;
     }
     private static double interpolateCount(double count, long ts, long runningEnd, long runningTime, long size) {
-        double newCount = count;
 
+        double newCount = count;
         /* sanity check */
         if (runningTime > 0) {
 
             long runningStart = runningEnd - runningTime;
-
             if (ts < runningStart) {
                 /*
                  * This interval was not started, this can happen if the current
