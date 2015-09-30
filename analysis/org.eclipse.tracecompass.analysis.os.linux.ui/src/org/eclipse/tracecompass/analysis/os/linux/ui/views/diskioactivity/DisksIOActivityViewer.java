@@ -16,7 +16,6 @@ package org.eclipse.tracecompass.analysis.os.linux.ui.views.diskioactivity;
 import java.util.List;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.tracecompass.analysis.os.linux.core.inputoutput.Attributes;
-import org.eclipse.tracecompass.internal.tmf.core.Activator;
 import org.eclipse.tracecompass.analysis.os.linux.core.inputoutput.InputOutputAnalysisModule;
 import org.eclipse.tracecompass.analysis.os.linux.core.inputoutput.StateValues;
 import org.eclipse.tracecompass.statesystem.core.ITmfStateSystem;
@@ -39,7 +38,7 @@ import org.eclipse.swt.widgets.Composite;
  *
  * @author Houssem Daoud
  */
-@SuppressWarnings("restriction")
+
 public class DisksIOActivityViewer extends TmfCommonXLineChartViewer {
 
     private TmfStateSystemAnalysisModule fModule = null;
@@ -76,7 +75,7 @@ public class DisksIOActivityViewer extends TmfCommonXLineChartViewer {
 
     @Override
     protected void updateData(long start, long end, int nb, IProgressMonitor monitor) {
-        try {
+
             if (getTrace() == null || fModule == null) {
                 return;
             }
@@ -101,10 +100,6 @@ public class DisksIOActivityViewer extends TmfCommonXLineChartViewer {
                 }
                 complete = ss.waitUntilBuilt(BUILD_UPDATE_TIMEOUT);
                 currentEnd = ss.getCurrentEndTime();
-                int disksQuark = ss.getQuarkAbsolute(Attributes.DISKS);
-                int diskQuark = ss.getQuarkRelative(disksQuark, diskname);
-                int writtenQuark = ss.getQuarkRelative(diskQuark, Attributes.SECTORS_WRITTEN);
-                //int readQuarks = ss.getQuarkRelative(diskQuark, Attributes.SECTORS_READ);
                 long traceStart = getStartTime();
                 long traceEnd = getEndTime();
                 long offset = this.getTimeOffset();
@@ -153,9 +148,6 @@ public class DisksIOActivityViewer extends TmfCommonXLineChartViewer {
                 updateDisplay();
 
             }
-        } catch (AttributeNotFoundException e) {
-            Activator.logError("Error updating the data of the Memory usage view", e); //$NON-NLS-1$
-        }
     }
 
     double getSectorsInRange(long start,long end,int rw){
