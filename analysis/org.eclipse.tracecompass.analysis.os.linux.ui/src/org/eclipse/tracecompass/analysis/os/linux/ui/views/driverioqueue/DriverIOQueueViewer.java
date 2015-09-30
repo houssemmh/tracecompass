@@ -39,7 +39,7 @@ public class DriverIOQueueViewer extends TmfCommonXLineChartViewer {
     private final String diskname = new String("sda"); //$NON-NLS-1$
     // Timeout between updates in the updateData thread
     private static final long BUILD_UPDATE_TIMEOUT = 500;
-    private static final double RESOLUTION = 0.2;
+    private static final double RESOLUTION = 0.5;
 
     /**
      * Constructor
