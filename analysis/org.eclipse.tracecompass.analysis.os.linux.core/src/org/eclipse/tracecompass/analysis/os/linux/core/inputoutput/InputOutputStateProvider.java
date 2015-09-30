@@ -11,6 +11,7 @@ import org.eclipse.jdt.annotation.NonNull;
 import org.eclipse.tracecompass.analysis.os.linux.core.trace.IKernelAnalysisEventLayout;
 import org.eclipse.tracecompass.statesystem.core.ITmfStateSystemBuilder;
 import org.eclipse.tracecompass.statesystem.core.exceptions.AttributeNotFoundException;
+import org.eclipse.tracecompass.statesystem.core.exceptions.StateSystemDisposedException;
 import org.eclipse.tracecompass.statesystem.core.exceptions.StateValueTypeException;
 import org.eclipse.tracecompass.statesystem.core.exceptions.TimeRangeException;
 import org.eclipse.tracecompass.statesystem.core.statevalue.ITmfStateValue;
@@ -39,15 +40,18 @@ public class InputOutputStateProvider extends AbstractTmfStateProvider {
         public Integer dev;
         public String diskname;
         //Map<Integer, Request> preparedRequests = new HashMap<>();
-        Map<Integer, Request> driverqueue = new HashMap<>();
-        Map<Integer, Request> waitingqueue = new HashMap<>();
-        Map<Integer, Bio> bios = new HashMap<>();
+        Map<Integer, Request> driverqueue;
+        Map<Integer, Request> waitingqueue;
+        Map<Integer, Bio> bios;
         Integer number_requests;
 
         public Disk(Integer dev, String diskname) {
             super();
             this.diskname = diskname;
             this.dev = dev;
+            driverqueue = new HashMap<>();
+            waitingqueue = new HashMap<>();
+            bios = new HashMap<>();
         }
     }
 
@@ -79,18 +83,18 @@ public class InputOutputStateProvider extends AbstractTmfStateProvider {
             super();
             this.sector = sector;
             bios = new Vector<>();
-            slotQuark = null;
-            requestQuark = null;
+            this.slotQuark = -1;
+            this.requestQuark = -1;
         }
 
-        public Request(Bio bio) {
-            super();
-            this.sector = bio.sector;
-            this.nr_sector = bio.nr_sector;
-            this.rwbs = bio.rwbs;
-            bios = new Vector<>();
-            bios.add(0, bio);
-        }
+//        public Request(Bio bio) {
+//            super();
+//            this.sector = bio.sector;
+//            this.nr_sector = bio.nr_sector;
+//            this.rwbs = bio.rwbs;
+//            bios = new Vector<>();
+//            bios.add(0, bio);
+//        }
     }
 
     Map<Integer, Disk> disks = new HashMap<>();
@@ -129,6 +133,135 @@ public class InputOutputStateProvider extends AbstractTmfStateProvider {
             final ITmfStateSystemBuilder ss = checkNotNull(getStateSystemBuilder());
             switch (eventName) {
 
+
+            /*case LttngStrings.BLOCK_GETRQ: {
+                Integer sector = ((Long)content.getField(LttngStrings.SECTOR).getValue()).intValue();
+                Integer nr_sector = ((Long)content.getField(LttngStrings.NR_SECTOR).getValue()).intValue();
+                Integer phydisk = ((Long)content.getField(LttngStrings.DEV).getValue()).intValue();
+                Integer rwbs = ((Long)content.getField(LttngStrings.RWBS).getValue()).intValue();
+                Disk disk = disks.get(phydisk);
+                if (disk == null) {
+                    return;
+                }
+                if (nr_sector.intValue() == 0) {
+                    return;
+                }
+                Bio bio = disk.bios.get(sector);
+                if (bio == null) {
+                    bio = new Bio(sector,nr_sector,disk,rwbs%2);
+                }
+                Request request = new Request(bio);
+                disk.preparedRequests.put(sector, request);
+            }
+                break;*/
+
+//            case LttngStrings.ELV_MERGE_REQUESTS: {
+//                Integer phydisk = ((Long)content.getField(LttngStrings.DEV).getValue()).intValue();
+//                Integer sector1 = ((Long)content.getField(LttngStrings.RQ_SECTOR).getValue()).intValue();
+//                Integer sector2 = ((Long)content.getField(LttngStrings.NEXTRQ_SECTOR).getValue()).intValue();
+//
+//                Disk disk = disks.get(phydisk);
+//                if (disk == null) {
+//                    return;
+//                }
+//                Request request1 = disk.waitingqueue.get(sector1);
+//                if (request1 == null) {
+//                    return;
+//                }
+//
+//                Request request2 = disk.waitingqueue.get(sector2);
+//                if (request2 == null) {
+//                    return;
+//                }
+//
+//                disk.waitingqueue.remove(request1.sector);
+//                disk.waitingqueue.remove(request2.sector);
+//                Request final_request = merge_request(request1, request2);
+//                disk.waitingqueue.put(final_request.sector, final_request);
+//                //remove_from_queue(ss,ts, request1,final_request);
+//                remove_from_queue(ss,ts, request2,final_request);
+//                //insert_in_queue(ss,ts, final_request, disk.diskname,Attributes.WAITING_QUEUE);
+//                update_queues_length(ss,ts, disk);
+//            }
+//                break;
+
+//            case LttngStrings.BLOCK_BIO_FRONTMERGE: {
+//                Integer sector =((Long)content.getField(LttngStrings.SECTOR).getValue()).intValue();
+//                Integer rq_sector =((Long)content.getField("rq_sector").getValue()).intValue(); //$NON-NLS-1$
+//                Integer nr_sector = ((Long)content.getField(LttngStrings.NR_SECTOR).getValue()).intValue();
+//                Integer phydisk = ((Long)content.getField(LttngStrings.DEV).getValue()).intValue();
+//                Integer rwbs = ((Long)content.getField(LttngStrings.RWBS).getValue()).intValue();
+//                Disk disk = disks.get(phydisk);
+//
+//                if (disk == null) {
+//                    return;
+//                }
+//                Request request = disk.waitingqueue.get(rq_sector);
+//                if (request == null) {
+//                    return;
+//                }
+//
+//                disk.waitingqueue.remove(request.sector);
+//                Bio bio = new Bio(sector,nr_sector,disk,rwbs%2);
+//                insert_bio(request, bio);
+//                disk.waitingqueue.put(request.sector, request);
+//                remove_from_queue(ss,ts, request,null);
+//                insert_in_queue(ss,ts, request, disk.diskname,Attributes.WAITING_QUEUE);
+//            }
+//                break;
+
+            case LttngStrings.BLOCK_RQ_INSERT: {
+                Integer phydisk = ((Long)content.getField(LttngStrings.DEV).getValue()).intValue();
+                Integer sector = ((Long)content.getField(LttngStrings.SECTOR).getValue()).intValue();
+                Integer nr_sector = ((Long)content.getField(LttngStrings.NR_SECTOR).getValue()).intValue();
+                Integer rwbs = ((Long)content.getField(LttngStrings.RWBS).getValue()).intValue();
+
+                Disk disk = disks.get(phydisk);
+                if (disk == null) {
+                    return;
+                }
+                if (nr_sector.intValue() == 0) {
+                    return;
+                }
+
+                Request request = new Request(sector);
+                request.nr_sector = nr_sector;
+                request.rwbs = rwbs%2;
+                //disk.preparedRequests.remove(request.sector);
+                disk.waitingqueue.put(request.sector, request);
+                insert_in_queue(ss, ts, request, disk.diskname,Attributes.WAITING_QUEUE);
+                update_queues_length(ss,ts, disk);
+            }
+                break;
+
+            case LttngStrings.BLOCK_RQ_ISSUE: {
+                Integer phydisk = ((Long) content.getField(LttngStrings.DEV).getValue()).intValue();
+                Integer sector = ((Long) content.getField(LttngStrings.SECTOR).getValue()).intValue();
+                Integer nr_sector = ((Long) content.getField(LttngStrings.NR_SECTOR).getValue()).intValue();
+
+                Disk disk = disks.get(phydisk);
+                if (disk == null) {
+                    return;
+                }
+
+                if (nr_sector.intValue() == 0) {
+                    return;
+                }
+
+                Request request = disk.waitingqueue.get(sector);
+                if (request == null) {
+                    return;
+                }
+                request.nr_sector = nr_sector;
+
+                disk.waitingqueue.remove(request.sector);
+                remove_from_queue(ss,ts, request,null);
+                disk.driverqueue.put(request.sector, request);
+                insert_in_queue(ss,ts, request, disk.diskname,Attributes.DRIVER_QUEUE);
+                update_queues_length(ss,ts, disk);
+            }
+                break;
+
             case LttngStrings.BLOCK_RQ_COMPLETE: {
                 Integer sector = ((Long) content.getField(LttngStrings.SECTOR).getValue()).intValue();
                 Integer nr_sector = ((Long) content.getField(LttngStrings.NR_SECTOR).getValue()).intValue();
@@ -152,145 +285,13 @@ public class InputOutputStateProvider extends AbstractTmfStateProvider {
                 if (request == null) {
                     return;
                 }
-                remove_from_queue(ss,ts, request,null);
+
                 disk.driverqueue.remove(sector);
-                update_queues_length(ss,ts, disk);
-            }
-                break;
-
-            /*case LttngStrings.BLOCK_GETRQ: {
-                Integer sector = ((Long)content.getField(LttngStrings.SECTOR).getValue()).intValue();
-                Integer nr_sector = ((Long)content.getField(LttngStrings.NR_SECTOR).getValue()).intValue();
-                Integer phydisk = ((Long)content.getField(LttngStrings.DEV).getValue()).intValue();
-                Integer rwbs = ((Long)content.getField(LttngStrings.RWBS).getValue()).intValue();
-                Disk disk = disks.get(phydisk);
-                if (disk == null) {
-                    return;
-                }
-                if (nr_sector.intValue() == 0) {
-                    return;
-                }
-                Bio bio = disk.bios.get(sector);
-                if (bio == null) {
-                    bio = new Bio(sector,nr_sector,disk,rwbs%2);
-                }
-                Request request = new Request(bio);
-                disk.preparedRequests.put(sector, request);
-            }
-                break;*/
-
-            case LttngStrings.BLOCK_RQ_INSERT: {
-                Integer phydisk = ((Long)content.getField(LttngStrings.DEV).getValue()).intValue();
-                Integer sector = ((Long)content.getField(LttngStrings.SECTOR).getValue()).intValue();
-                Integer nr_sector = ((Long)content.getField(LttngStrings.NR_SECTOR).getValue()).intValue();
-                Integer rwbs = ((Long)content.getField(LttngStrings.RWBS).getValue()).intValue();
-
-                if (sector == 668928){
-                    System.out.println();
-                }
-                Disk disk = disks.get(phydisk);
-                if (disk == null) {
-                    return;
-                }
-                if (nr_sector.intValue() == 0) {
-                    return;
-                }
-//                Request request = disk.preparedRequests.get(sector);
-//                if (request == null) {
-//                    return;
-//                }
-                Request request = new Request(sector);
-                request.nr_sector = nr_sector;
-                request.rwbs = rwbs%2;
-                //disk.preparedRequests.remove(request.sector);
-                disk.waitingqueue.put(request.sector, request);
-                insert_in_queue(ss, ts, request, disk.diskname,Attributes.WAITING_QUEUE);
-                update_queues_length(ss,ts, disk);
-            }
-                break;
-
-            case LttngStrings.ELV_MERGE_REQUESTS: {
-                Integer phydisk = ((Long)content.getField(LttngStrings.DEV).getValue()).intValue();
-                Integer sector1 = ((Long)content.getField(LttngStrings.RQ_SECTOR).getValue()).intValue();
-                Integer sector2 = ((Long)content.getField(LttngStrings.NEXTRQ_SECTOR).getValue()).intValue();
-
-                Disk disk = disks.get(phydisk);
-                if (disk == null) {
-                    return;
-                }
-                Request request1 = disk.waitingqueue.get(sector1);
-                if (request1 == null) {
-                    return;
-                }
-
-                Request request2 = disk.waitingqueue.get(sector2);
-                if (request2 == null) {
-                    return;
-                }
-
-                disk.waitingqueue.remove(request1.sector);
-                disk.waitingqueue.remove(request2.sector);
-                Request final_request = merge_request(request1, request2);
-                disk.waitingqueue.put(final_request.sector, final_request);
-                //remove_from_queue(ss,ts, request1,final_request);
-                remove_from_queue(ss,ts, request2,final_request);
-                //insert_in_queue(ss,ts, final_request, disk.diskname,Attributes.WAITING_QUEUE);
-                update_queues_length(ss,ts, disk);
-            }
-                break;
-
-            case LttngStrings.BLOCK_BIO_FRONTMERGE: {
-                Integer sector =((Long)content.getField(LttngStrings.SECTOR).getValue()).intValue();
-                Integer rq_sector =((Long)content.getField("rq_sector").getValue()).intValue(); //$NON-NLS-1$
-                Integer nr_sector = ((Long)content.getField(LttngStrings.NR_SECTOR).getValue()).intValue();
-                Integer phydisk = ((Long)content.getField(LttngStrings.DEV).getValue()).intValue();
-                Integer rwbs = ((Long)content.getField(LttngStrings.RWBS).getValue()).intValue();
-                Disk disk = disks.get(phydisk);
-
-                if (disk == null) {
-                    return;
-                }
-                Request request = disk.waitingqueue.get(rq_sector);
-                if (request == null) {
-                    return;
-                }
-
-                Bio bio = new Bio(sector,nr_sector,disk,rwbs%2);
-                disk.waitingqueue.remove(request.sector);
                 remove_from_queue(ss,ts, request,null);
-                insert_bio(request, bio);
-                disk.waitingqueue.put(request.sector, request);
-                insert_in_queue(ss,ts, request, disk.diskname,Attributes.WAITING_QUEUE);
-            }
-                break;
-
-
-            case LttngStrings.BLOCK_RQ_ISSUE: {
-                Integer phydisk = ((Long) content.getField(LttngStrings.DEV).getValue()).intValue();
-                Integer sector = ((Long) content.getField(LttngStrings.SECTOR).getValue()).intValue();
-                Integer nr_sector = ((Long) content.getField(LttngStrings.NR_SECTOR).getValue()).intValue();
-
-                Disk disk = disks.get(phydisk);
-                if (disk == null) {
-                    return;
-                }
-
-                if (nr_sector == 0) {
-                    return;
-                }
-
-                Request request = disk.waitingqueue.get(sector);
-                if (request == null) {
-                    return;
-                }
-                request.nr_sector = nr_sector;
-                disk.waitingqueue.remove(request.sector);
-                remove_from_queue(ss,ts, request,null);
-                disk.driverqueue.put(request.sector, request);
-                insert_in_queue(ss,ts, request, disk.diskname,Attributes.DRIVER_QUEUE);
                 update_queues_length(ss,ts, disk);
             }
                 break;
+
             case LttngStrings.LTTNG_STATEDUMP_BLOCK_DEVICE: {
                 String diskname = (String) event.getContent().getField(LttngStrings.DISKNAME).getValue();
                 Integer dev = ((Long) content.getField(LttngStrings.DEV).getValue()).intValue();
@@ -383,27 +384,58 @@ public class InputOutputStateProvider extends AbstractTmfStateProvider {
         }
     }
 
-    static private void insert_bio(Request req, Bio bio) {
-        req.bios.add(bio);
-        req.nr_sector += bio.nr_sector;
-        if (bio.sector < req.sector) {
-            req.sector = bio.sector;
+//    static private void insert_bio(Request req, Bio bio) {
+//        req.bios.add(bio);
+//        req.nr_sector += bio.nr_sector;
+//        if (bio.sector < req.sector) {
+//            req.sector = bio.sector;
+//        }
+//    }
+//
+//    private Request merge_request(Request first_req, Request second_req) {
+//        Request req = new Request(first_req.sector);
+//        req.disk = first_req.disk;
+//        req.nr_sector = first_req.nr_sector + second_req.nr_sector;
+//        req.slotQuark = first_req.slotQuark;
+//        req.requestQuark = first_req.requestQuark;
+//        req.bios.addAll(first_req.bios);
+//        req.bios.addAll(second_req.bios);
+//        req.rwbs = first_req.rwbs;
+//        return req;
+//    }
+
+    private static Integer getFirstAvailableSlot(ITmfStateSystemBuilder ssb,long ts,String diskname,String queue_name){
+        Integer diskquark = ssb.getQuarkRelativeAndAdd(getNodeDisks(ssb), diskname);
+        Integer waitingQueueQuark = ssb.getQuarkRelativeAndAdd(diskquark, queue_name);
+        try {
+            List<Integer> slotsQuarks = ssb.getSubAttributes(waitingQueueQuark, false);
+            for (Integer slotQuark : slotsQuarks) {
+                Integer slotStatusQuark = ssb.getQuarkRelative(slotQuark, Attributes.STATUS);
+                ITmfStateValue value = ssb.querySingleState(ts, slotStatusQuark).getStateValue();
+                if (value.isNull()) {
+                    return slotQuark;
+                }
+            }
+            Integer i = slotsQuarks.size() + 1;
+            String number = String.valueOf(i);
+            Integer slotQuark = ssb.getQuarkRelativeAndAdd(waitingQueueQuark, number);
+            Integer statusQuark = ssb.getQuarkRelativeAndAdd(slotQuark, Attributes.STATUS);
+            return slotQuark;
+        } catch (AttributeNotFoundException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+            System.out.println("getSubAttributes failed in getFirstAvailableSlot");
+            return -1;
+        } catch (StateSystemDisposedException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+            System.out.println("querySingleState failed in getFirstAvailableSlot");
+            return -1;
         }
+
     }
 
-    private Request merge_request(Request first_req, Request second_req) {
-        Request req = new Request(first_req.sector);
-        req.disk = first_req.disk;
-        req.nr_sector = first_req.nr_sector + second_req.nr_sector;
-        req.slotQuark = first_req.slotQuark;
-        req.requestQuark = first_req.requestQuark;
-        req.bios.addAll(first_req.bios);
-        req.bios.addAll(second_req.bios);
-        req.rwbs = first_req.rwbs;
-        return req;
-    }
-
-    private static void insert_in_queue(ITmfStateSystemBuilder ssb,long ts, Request request, String diskname, String queue_name) throws AttributeNotFoundException {
+    private static void insert_in_queue(ITmfStateSystemBuilder ssb, long ts, Request request, String diskname, String queue_name) throws AttributeNotFoundException {
 
         /* Prepare states of the new inserted request */
         ITmfStateValue statusState;
@@ -421,52 +453,34 @@ public class InputOutputStateProvider extends AbstractTmfStateProvider {
         }
 
         /* Insertion in waiting queue */
-        Integer diskquark = ssb.getQuarkRelativeAndAdd(getNodeDisks(ssb), diskname);
-        Integer waitingQueueQuark = ssb.getQuarkRelativeAndAdd(diskquark, queue_name);
-        List<Integer> slotsQuarks = ssb.getSubAttributes(waitingQueueQuark, false);
-        int insertedInQueue=0;
-        for (Integer slotQuark : slotsQuarks) {
-            Integer slotStatusQuark = ssb.getQuarkRelative(slotQuark, Attributes.STATUS);
-            ITmfStateValue value = ssb.queryOngoingState(slotStatusQuark);
-            if (value.isNull()) {
-                insertedInQueue=1;
-                ssb.modifyAttribute(ts, statusState, slotStatusQuark);
-                Integer currentRequestQuark = ssb.getQuarkRelative(slotQuark, Attributes.CURRENT_REQUEST);
-                ssb.modifyAttribute(ts, TmfStateValue.newValueLong(request.sector), currentRequestQuark);
-                Integer requestSizeQuark = ssb.getQuarkRelative(slotQuark, Attributes.REQUEST_SIZE);
-                ssb.modifyAttribute(ts, TmfStateValue.newValueLong(request.nr_sector), requestSizeQuark);
-                request.slotQuark = slotQuark;
-                break;
-            }
+        Integer slotQuark = getFirstAvailableSlot(ssb, ts, diskname, queue_name);
+        if(slotQuark.intValue() == -1) {
+            System.out.println("Error in finding Slot");
+            System.exit(-1);
         }
-        if (insertedInQueue == 0) {
-            Integer i = slotsQuarks.size() + 1;
-            String number = String.valueOf(i);
-            Integer slotQuark = ssb.getQuarkRelativeAndAdd(waitingQueueQuark, number);
-            Integer statusQuark = ssb.getQuarkRelativeAndAdd(slotQuark, Attributes.STATUS);
-            ssb.modifyAttribute(ts, statusState, statusQuark);
-            Integer currentRequestQuark = ssb.getQuarkRelativeAndAdd(slotQuark, Attributes.CURRENT_REQUEST);
-            ssb.modifyAttribute(ts, TmfStateValue.newValueLong(request.sector), currentRequestQuark);
-            Integer requestSizeQuark = ssb.getQuarkRelativeAndAdd(slotQuark, Attributes.REQUEST_SIZE);
-            ssb.modifyAttribute(ts, TmfStateValue.newValueLong(request.nr_sector), requestSizeQuark);
-            request.slotQuark = slotQuark;
-        }
-
-        /* Keep request informations in a request structure */
-        Integer requestsQuark = ssb.getQuarkRelativeAndAdd(diskquark, Attributes.REQUESTS);
-        Integer requestQuark = ssb.getQuarkRelativeAndAdd(requestsQuark, String.valueOf(request.sector));
-        request.requestQuark = requestQuark;
-        Integer requestStatusQuark = ssb.getQuarkRelativeAndAdd(requestQuark, Attributes.STATUS);
-        ssb.modifyAttribute(ts, statusState, requestStatusQuark);
-        Integer requestSizeQuark = ssb.getQuarkRelativeAndAdd(requestQuark, Attributes.REQUEST_SIZE);
+        Integer statusQuark = ssb.getQuarkRelativeAndAdd(slotQuark, Attributes.STATUS);
+        ssb.modifyAttribute(ts, statusState, statusQuark);
+        Integer currentRequestQuark = ssb.getQuarkRelativeAndAdd(slotQuark, Attributes.CURRENT_REQUEST);
+        ssb.modifyAttribute(ts, TmfStateValue.newValueLong(request.sector), currentRequestQuark);
+        Integer requestSizeQuark = ssb.getQuarkRelativeAndAdd(slotQuark, Attributes.REQUEST_SIZE);
         ssb.modifyAttribute(ts, TmfStateValue.newValueLong(request.nr_sector), requestSizeQuark);
-        Integer requestCurrentQueueQuark = ssb.getQuarkRelativeAndAdd(requestQuark, Attributes.QUEUE);
-        ssb.modifyAttribute(ts, currentQueueState, requestCurrentQueueQuark);
-        Integer positionInQueueQuark = ssb.getQuarkRelativeAndAdd(requestQuark, Attributes.POSITION_IN_QUEUE);
-        String position = ssb.getAttributeName(request.slotQuark);
-        ssb.modifyAttribute(ts, TmfStateValue.newValueLong(Integer.valueOf(position)), positionInQueueQuark);
-        Integer MergedInQuark = ssb.getQuarkRelativeAndAdd(request.requestQuark, Attributes.MERGED_IN);
-        ssb.modifyAttribute(ts, TmfStateValue.nullValue(), MergedInQuark);
+        request.slotQuark = slotQuark;
+
+//        /* Keep request informations in a request structure */
+//        Integer requestsQuark = ssb.getQuarkRelativeAndAdd(diskquark, Attributes.REQUESTS);
+//        Integer requestQuark = ssb.getQuarkRelativeAndAdd(requestsQuark, String.valueOf(request.sector));
+//        request.requestQuark = requestQuark;
+//        Integer requestStatusQuark = ssb.getQuarkRelativeAndAdd(requestQuark, Attributes.STATUS);
+//        ssb.modifyAttribute(ts, statusState, requestStatusQuark);
+//        Integer requestSizeQuark = ssb.getQuarkRelativeAndAdd(requestQuark, Attributes.REQUEST_SIZE);
+//        ssb.modifyAttribute(ts, TmfStateValue.newValueLong(request.nr_sector), requestSizeQuark);
+//        Integer requestCurrentQueueQuark = ssb.getQuarkRelativeAndAdd(requestQuark, Attributes.QUEUE);
+//        ssb.modifyAttribute(ts, currentQueueState, requestCurrentQueueQuark);
+//        Integer positionInQueueQuark = ssb.getQuarkRelativeAndAdd(requestQuark, Attributes.POSITION_IN_QUEUE);
+//        String position = ssb.getAttributeName(request.slotQuark);
+//        ssb.modifyAttribute(ts, TmfStateValue.newValueLong(Integer.valueOf(position)), positionInQueueQuark);
+//        Integer MergedInQuark = ssb.getQuarkRelativeAndAdd(request.requestQuark, Attributes.MERGED_IN);
+//        ssb.modifyAttribute(ts, TmfStateValue.nullValue(), MergedInQuark);
 
     }
 
@@ -482,20 +496,20 @@ public class InputOutputStateProvider extends AbstractTmfStateProvider {
             ssb.modifyAttribute(ts, TmfStateValue.nullValue(), requestSizeQuark);
             request.slotQuark=null;
 
-            // set the request as finished
-            Integer requestStatusQuark = ssb.getQuarkRelativeAndAdd(request.requestQuark, Attributes.STATUS);
-            ssb.modifyAttribute(ts, TmfStateValue.nullValue(), requestStatusQuark);
-            Integer sizeQuark = ssb.getQuarkRelativeAndAdd(request.requestQuark, Attributes.REQUEST_SIZE);
-            ssb.modifyAttribute(ts, TmfStateValue.nullValue(), sizeQuark);
-            Integer requestCurrentQueueQuark = ssb.getQuarkRelativeAndAdd(request.requestQuark, Attributes.QUEUE);
-            ssb.modifyAttribute(ts, TmfStateValue.nullValue(), requestCurrentQueueQuark);
-            Integer positionInQueueQuark = ssb.getQuarkRelativeAndAdd(request.requestQuark, Attributes.POSITION_IN_QUEUE);
-            ssb.modifyAttribute(ts, TmfStateValue.nullValue(), positionInQueueQuark);
-            if(nextRequest != null){
-                Integer MergedInQuark = ssb.getQuarkRelativeAndAdd(request.requestQuark, Attributes.MERGED_IN);
-                ssb.modifyAttribute(ts, TmfStateValue.newValueLong(nextRequest.sector), MergedInQuark);
-            }
-            request.requestQuark = null;
+//            // set the request as finished
+//            Integer requestStatusQuark = ssb.getQuarkRelative(request.requestQuark, Attributes.STATUS);
+//            ssb.modifyAttribute(ts, TmfStateValue.nullValue(), requestStatusQuark);
+//            Integer sizeQuark = ssb.getQuarkRelative(request.requestQuark, Attributes.REQUEST_SIZE);
+//            ssb.modifyAttribute(ts, TmfStateValue.nullValue(), sizeQuark);
+//            Integer requestCurrentQueueQuark = ssb.getQuarkRelative(request.requestQuark, Attributes.QUEUE);
+//            ssb.modifyAttribute(ts, TmfStateValue.nullValue(), requestCurrentQueueQuark);
+//            Integer positionInQueueQuark = ssb.getQuarkRelative(request.requestQuark, Attributes.POSITION_IN_QUEUE);
+//            ssb.modifyAttribute(ts, TmfStateValue.nullValue(), positionInQueueQuark);
+//            if(nextRequest != null){
+//                Integer MergedInQuark = ssb.getQuarkRelativeAndAdd(request.requestQuark, Attributes.MERGED_IN);
+//                ssb.modifyAttribute(ts, TmfStateValue.newValueLong(nextRequest.sector), MergedInQuark);
+//            }
+//            request.requestQuark = null;
         }
     }
 
