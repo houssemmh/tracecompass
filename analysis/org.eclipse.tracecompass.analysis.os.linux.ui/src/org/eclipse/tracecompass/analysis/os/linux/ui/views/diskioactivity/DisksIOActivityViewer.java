@@ -169,7 +169,6 @@ public class DisksIOActivityViewer extends TmfCommonXLineChartViewer {
             return -1;
         }
 
-        System.out.println("getsectorsinrange " + startTime + " "+ endTime);
         try {
             List<ITmfStateInterval> endState = ss.queryFullState(endTime);
             List<ITmfStateInterval> startState = ss.queryFullState(startTime);
@@ -186,22 +185,20 @@ public class DisksIOActivityViewer extends TmfCommonXLineChartViewer {
                 Integer currentRequestQuark = ss.getQuarkRelative(driverSlotQuark, Attributes.CURRENT_REQUEST);
                 int sizeQuark = ss.getQuarkRelative(driverSlotQuark, Attributes.REQUEST_SIZE);
                 int statusQuark = ss.getQuarkRelative(driverSlotQuark, Attributes.STATUS);
-                //interpoler à startTime
+                // interpolate at startTime
                 long startrequest_sector = startState.get(currentRequestQuark).getStateValue().unboxLong();
                 if( startrequest_sector != -1) {
                     if (startState.get(statusQuark).getStateValue().unboxInt() == rw) {
-                    System.out.println("start " +startrequest_sector);
                     long runningTime = startState.get(currentRequestQuark).getEndTime()- startState.get(currentRequestQuark).getStartTime();
                     long runningEnd = startState.get(currentRequestQuark).getEndTime();
                     long startsize = startState.get(sizeQuark).getStateValue().unboxLong();
                     countAtStart = interpolateCount(countAtStart, startTime, runningEnd, runningTime, startsize);
                     }
                 }
-                //interpoler à EndTime
+                // interpolate at EndTime
                 long endrequest_sector = endState.get(currentRequestQuark).getStateValue().unboxLong();
                 if( endrequest_sector != -1) {
                     if (startState.get(statusQuark).getStateValue().unboxInt() == rw) {
-                    System.out.println("end   " +endrequest_sector);
                     long runningTime = endState.get(currentRequestQuark).getEndTime()- endState.get(currentRequestQuark).getStartTime();
                     long runningEnd = endState.get(currentRequestQuark).getEndTime();
                     long endsize = endState.get(sizeQuark).getStateValue().unboxLong();
@@ -209,9 +206,6 @@ public class DisksIOActivityViewer extends TmfCommonXLineChartViewer {
                     }
                 }
             }
-            System.out.println("countAtStart " + countAtStart);
-            System.out.println("countAtEnd   " + countAtEnd);
-            System.out.println();
             currentCount = countAtEnd - countAtStart;
         } catch (StateSystemDisposedException e) {
             e.printStackTrace();
@@ -224,22 +218,11 @@ public class DisksIOActivityViewer extends TmfCommonXLineChartViewer {
     private static double interpolateCount(double count, long ts, long runningEnd, long runningTime, long size) {
 
         double newCount = count;
-        /* sanity check */
         if (runningTime > 0) {
-
             long runningStart = runningEnd - runningTime;
             if (ts < runningStart) {
-                /*
-                 * This interval was not started, this can happen if the current
-                 * running thread is unknown and we execute this method. It just
-                 * means that this process was not the one running
-                 */
                 return newCount;
             }
-            /*
-            if (interpolation < 0) {
-                System.out.println();
-            }*/
             double interpolation= (double)(ts - runningStart) * (double)size / (runningTime);
             newCount += interpolation;
         }
