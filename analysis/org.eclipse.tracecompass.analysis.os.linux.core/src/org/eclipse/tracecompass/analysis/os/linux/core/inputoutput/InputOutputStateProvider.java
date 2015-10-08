@@ -6,7 +6,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Vector;
-
 import org.eclipse.jdt.annotation.NonNull;
 import org.eclipse.tracecompass.analysis.os.linux.core.trace.IKernelAnalysisEventLayout;
 import org.eclipse.tracecompass.statesystem.core.ITmfStateSystemBuilder;
@@ -23,7 +22,6 @@ import org.eclipse.tracecompass.tmf.core.trace.ITmfTrace;
 
 /**
  * @author Houssem Daoud
- *
  */
 public class InputOutputStateProvider extends AbstractTmfStateProvider {
 
@@ -73,7 +71,6 @@ public class InputOutputStateProvider extends AbstractTmfStateProvider {
         public Disk disk;
         public Vector<Bio> bios;
         Integer slotQuark;
-        Integer requestQuark;
         public int rwbs;
 
         public Request(Integer sector) {
@@ -81,7 +78,6 @@ public class InputOutputStateProvider extends AbstractTmfStateProvider {
             this.sector = sector;
             bios = new Vector<>();
             this.slotQuark = -1;
-            this.requestQuark = -1;
         }
 
          public Request(Bio bio) {
@@ -92,7 +88,6 @@ public class InputOutputStateProvider extends AbstractTmfStateProvider {
          bios = new Vector<>();
          bios.add(0, bio);
          this.slotQuark = -1;
-         this.requestQuark = -1;
          }
     }
 
@@ -136,7 +131,6 @@ public class InputOutputStateProvider extends AbstractTmfStateProvider {
                 Integer phydisk = ((Long) content.getField(LttngStrings.DEV).getValue()).intValue();
                 Integer baseRequest_sector = ((Long) content.getField(LttngStrings.RQ_SECTOR).getValue()).intValue();
                 Integer mergedRequest_sector = ((Long) content.getField(LttngStrings.NEXTRQ_SECTOR).getValue()).intValue();
-
                 Disk disk = disks.get(phydisk);
                 if (disk == null) {
                     return;
@@ -145,17 +139,15 @@ public class InputOutputStateProvider extends AbstractTmfStateProvider {
                 if (baseRequest == null) {
                     return;
                 }
-
                 Request mergedRequest = disk.waitingqueue.get(mergedRequest_sector);
                 if (mergedRequest == null) {
                     return;
                 }
-
                 disk.waitingqueue.remove(baseRequest.sector);
                 disk.waitingqueue.remove(mergedRequest.sector);
                 Request final_request = merge_request(baseRequest, mergedRequest);
                 disk.waitingqueue.put(final_request.sector, final_request);
-                remove_from_queue(ss, ts, mergedRequest, final_request);
+                remove_from_queue(ss, ts, mergedRequest, final_request.slotQuark);
                 update_queues_length(ss, ts, disk);
             }
                 break;
@@ -167,7 +159,6 @@ public class InputOutputStateProvider extends AbstractTmfStateProvider {
                 Integer phydisk = ((Long) content.getField(LttngStrings.DEV).getValue()).intValue();
                 Integer rwbs = ((Long) content.getField(LttngStrings.RWBS).getValue()).intValue();
                 Disk disk = disks.get(phydisk);
-
                 if (disk == null) {
                     return;
                 }
@@ -175,13 +166,12 @@ public class InputOutputStateProvider extends AbstractTmfStateProvider {
                 if (request == null) {
                     return;
                 }
-
                 disk.waitingqueue.remove(request.sector);
                 Bio bio = new Bio(sector, nr_sector, disk, rwbs % 2);
                 insert_bio(request, bio);
                 disk.waitingqueue.put(request.sector, request);
                 remove_from_queue(ss, ts, request, null);
-                insert_in_queue(ss, ts, request, disk.diskname, Attributes.WAITING_QUEUE);
+                insert_in_queue(ss, ts, request, disk.diskname, Attributes.WAITING_QUEUE, null);
             }
                 break;
 
@@ -190,7 +180,6 @@ public class InputOutputStateProvider extends AbstractTmfStateProvider {
                 Integer sector = ((Long) content.getField(LttngStrings.SECTOR).getValue()).intValue();
                 Integer nr_sector = ((Long) content.getField(LttngStrings.NR_SECTOR).getValue()).intValue();
                 Integer rwbs = ((Long) content.getField(LttngStrings.RWBS).getValue()).intValue();
-
                 Disk disk = disks.get(phydisk);
                 if (disk == null) {
                     return;
@@ -198,11 +187,10 @@ public class InputOutputStateProvider extends AbstractTmfStateProvider {
                 if (nr_sector.intValue() == 0) {
                     return;
                 }
-
                 Bio bio = new Bio(sector, nr_sector, disk, rwbs % 2);
                 Request request = new Request(bio);
                 disk.waitingqueue.put(request.sector, request);
-                insert_in_queue(ss, ts, request, disk.diskname, Attributes.WAITING_QUEUE);
+                insert_in_queue(ss, ts, request, disk.diskname, Attributes.WAITING_QUEUE, null);
                 update_queues_length(ss, ts, disk);
             }
                 break;
@@ -211,26 +199,23 @@ public class InputOutputStateProvider extends AbstractTmfStateProvider {
                 Integer phydisk = ((Long) content.getField(LttngStrings.DEV).getValue()).intValue();
                 Integer sector = ((Long) content.getField(LttngStrings.SECTOR).getValue()).intValue();
                 Integer nr_sector = ((Long) content.getField(LttngStrings.NR_SECTOR).getValue()).intValue();
-
                 Disk disk = disks.get(phydisk);
                 if (disk == null) {
                     return;
                 }
-
                 if (nr_sector.intValue() == 0) {
                     return;
                 }
-
                 Request request = disk.waitingqueue.get(sector);
                 if (request == null) {
                     return;
                 }
-
                 request.nr_sector = nr_sector;
                 disk.waitingqueue.remove(request.sector);
+                Integer previousSlot = request.slotQuark;
                 remove_from_queue(ss, ts, request, null);
                 disk.driverqueue.put(request.sector, request);
-                insert_in_queue(ss, ts, request, disk.diskname, Attributes.DRIVER_QUEUE);
+                insert_in_queue(ss, ts, request, disk.diskname, Attributes.DRIVER_QUEUE, previousSlot);
                 update_queues_length(ss, ts, disk);
             }
                 break;
@@ -244,7 +229,6 @@ public class InputOutputStateProvider extends AbstractTmfStateProvider {
                 if (disk == null) {
                     return;
                 }
-
                 Integer diskquark = ss.getQuarkRelativeAndAdd(getNodeDisks(ss), disk.diskname);
                 if (rwbs % 2 == 0) {
                     Integer readQuark = ss.getQuarkRelativeAndAdd(diskquark, Attributes.SECTORS_READ);
@@ -253,12 +237,10 @@ public class InputOutputStateProvider extends AbstractTmfStateProvider {
                     Integer writtenQuark = ss.getQuarkRelativeAndAdd(diskquark, Attributes.SECTORS_WRITTEN);
                     ss.modifyAttribute(ts, TmfStateValue.newValueInt(increment(ss, writtenQuark, nr_sector)), writtenQuark);
                 }
-
                 Request request = disk.driverqueue.get(sector);
                 if (request == null) {
                     return;
                 }
-
                 disk.driverqueue.remove(sector);
                 remove_from_queue(ss, ts, request, null);
                 update_queues_length(ss, ts, disk);
@@ -275,7 +257,6 @@ public class InputOutputStateProvider extends AbstractTmfStateProvider {
 
             default: {
                 if (eventName.startsWith(LttngStrings.SYSCALL_PREFIX)) {
-
                     Integer tid = ((Long) content.getField(LttngStrings.CONTEXT_TID).getValue()).intValue();
                     Integer sys_ThreadNode = ss.getQuarkRelativeAndAdd(getNodeSyscalls(ss), String.valueOf(tid));
                     Integer quark = ss.getQuarkRelativeAndAdd(sys_ThreadNode, Attributes.SYSTEM_CALL);
@@ -283,7 +264,6 @@ public class InputOutputStateProvider extends AbstractTmfStateProvider {
                     ss.modifyAttribute(ts, value, quark);
                 }
                 if (eventName.startsWith(LttngStrings.EXIT_SYSCALL)) {
-
                     Integer tid = ((Long) content.getField(LttngStrings.CONTEXT_TID).getValue()).intValue();
                     Integer pid = ((Long) content.getField(LttngStrings.CONTEXT_PID).getValue()).intValue();
                     Integer ret = ((Long) event.getContent().getField(LttngStrings.RETURN).getValue()).intValue();
@@ -314,29 +294,12 @@ public class InputOutputStateProvider extends AbstractTmfStateProvider {
             }
 
         } catch (AttributeNotFoundException ae) {
-            /*
-             * This would indicate a problem with the logic of the manager here,
-             * so it shouldn't happen.
-             */
             ae.printStackTrace();
-
         } catch (TimeRangeException tre) {
-            /*
-             * This would happen if the events in the trace aren't ordered
-             * chronologically, which should never be the case ...
-             */
-            System.err.println("TimeRangeExcpetion caught in the state system's event manager."); //$NON-NLS-1$
-            System.err.println("Are the events in the trace correctly ordered?"); //$NON-NLS-1$
             tre.printStackTrace();
-
         } catch (StateValueTypeException sve) {
-            /*
-             * This would happen if we were trying to push/pop attributes not of
-             * type integer. Which, once again, should never happen.
-             */
             sve.printStackTrace();
         }
-
     }
 
     private static int getNodeDisks(ITmfStateSystemBuilder ssb) {
@@ -370,7 +333,6 @@ public class InputOutputStateProvider extends AbstractTmfStateProvider {
         req.disk = first_req.disk;
         req.nr_sector = first_req.nr_sector + second_req.nr_sector;
         req.slotQuark = first_req.slotQuark;
-        req.requestQuark = first_req.requestQuark;
         req.bios.addAll(first_req.bios);
         req.bios.addAll(second_req.bios);
         req.rwbs = first_req.rwbs;
@@ -395,33 +357,17 @@ public class InputOutputStateProvider extends AbstractTmfStateProvider {
             ssb.getQuarkRelativeAndAdd(slotQuark, Attributes.STATUS);
             return slotQuark;
         } catch (AttributeNotFoundException e) {
-            // TODO Auto-generated catch block
             e.printStackTrace();
             return -1;
         } catch (StateSystemDisposedException e) {
-            // TODO Auto-generated catch block
             e.printStackTrace();
             return -1;
         }
-
     }
 
-    private static void insert_in_queue(ITmfStateSystemBuilder ssb, long ts, Request request, String diskname, String queue_name) throws AttributeNotFoundException {
+    private static void insert_in_queue(ITmfStateSystemBuilder ssb, long ts, Request request, String diskname, String queue_name, Integer previousSlot) throws AttributeNotFoundException {
 
-        /* Prepare states of the new inserted request */
-        ITmfStateValue statusState;
-        if (request.rwbs == 0) {
-            statusState = StateValues.READING_REQUEST_VALUE;
-        } else {
-            statusState = StateValues.WRITING_REQUEST_VALUE;
-        }
-        ITmfStateValue currentQueueState;
-        if (queue_name.equals(Attributes.WAITING_QUEUE)) {
-            currentQueueState = StateValues.IN_BLOCK_QUEUE_VALUE;
-        } else {
-            currentQueueState = StateValues.IN_DRIVER_QUEUE_VALUE;
-        }
-
+        ITmfStateValue statusState = request.rwbs == 0 ? StateValues.READING_REQUEST_VALUE : StateValues.WRITING_REQUEST_VALUE;
         /* Insertion in waiting queue */
         Integer slotQuark = getFirstAvailableSlot(ssb, ts, diskname, queue_name);
         if (slotQuark.intValue() == -1) {
@@ -434,28 +380,16 @@ public class InputOutputStateProvider extends AbstractTmfStateProvider {
         ssb.modifyAttribute(ts, TmfStateValue.newValueLong(request.sector), currentRequestQuark);
         Integer requestInSlotSizeQuark = ssb.getQuarkRelativeAndAdd(slotQuark, Attributes.REQUEST_SIZE);
         ssb.modifyAttribute(ts, TmfStateValue.newValueLong(request.nr_sector), requestInSlotSizeQuark);
+        if (previousSlot != null) {
+            Integer IssuedFromQuark = ssb.getQuarkRelativeAndAdd(slotQuark,Attributes.ISSUED_FROM);
+            ssb.modifyAttribute(ts,TmfStateValue.newValueLong(previousSlot), IssuedFromQuark);
+        }
+        Integer mergedInQuark = ssb.getQuarkRelativeAndAdd(slotQuark,Attributes.MERGED_IN);
+        ssb.modifyAttribute(ts,TmfStateValue.nullValue(), mergedInQuark);
         request.slotQuark = slotQuark;
-
-        /* Keep request informations in a request structure */
-        Integer diskquark = ssb.getQuarkRelativeAndAdd(getNodeDisks(ssb), diskname);
-        Integer requestsQuark = ssb.getQuarkRelativeAndAdd(diskquark,Attributes.REQUESTS);
-        Integer requestQuark = ssb.getQuarkRelativeAndAdd(requestsQuark,String.valueOf(request.sector));
-        Integer requestStatusQuark = ssb.getQuarkRelativeAndAdd(requestQuark,Attributes.STATUS);
-        ssb.modifyAttribute(ts, statusState, requestStatusQuark);
-        Integer requestSizeQuark = ssb.getQuarkRelativeAndAdd(requestQuark,Attributes.REQUEST_SIZE);
-        ssb.modifyAttribute(ts,TmfStateValue.newValueLong(request.nr_sector), requestSizeQuark);
-        Integer requestCurrentQueueQuark = ssb.getQuarkRelativeAndAdd(requestQuark, Attributes.QUEUE);
-        ssb.modifyAttribute(ts, currentQueueState, requestCurrentQueueQuark);
-        Integer positionInQueueQuark = ssb.getQuarkRelativeAndAdd(requestQuark,Attributes.POSITION_IN_QUEUE);
-        String position = ssb.getAttributeName(request.slotQuark);
-        ssb.modifyAttribute(ts,TmfStateValue.newValueLong(Integer.valueOf(position)),positionInQueueQuark);
-        Integer MergedInQuark = ssb.getQuarkRelativeAndAdd(requestQuark,Attributes.MERGED_IN);
-        ssb.modifyAttribute(ts, TmfStateValue.nullValue(), MergedInQuark);
-        request.requestQuark = requestQuark;
-
     }
 
-    private static void remove_from_queue(ITmfStateSystemBuilder ssb, long ts, Request request, Request nextRequest) throws StateValueTypeException, AttributeNotFoundException {
+    private static void remove_from_queue(ITmfStateSystemBuilder ssb, long ts, Request request, Integer nextSlot) throws StateValueTypeException, AttributeNotFoundException {
 
         // set the queue slot as empty
         Integer queueStatusQuark = ssb.getQuarkRelativeAndAdd(request.slotQuark, Attributes.STATUS);
@@ -464,22 +398,15 @@ public class InputOutputStateProvider extends AbstractTmfStateProvider {
         ssb.modifyAttribute(ts, TmfStateValue.nullValue(), currentRequestQuark);
         Integer requestSizeQuark = ssb.getQuarkRelativeAndAdd(request.slotQuark, Attributes.REQUEST_SIZE);
         ssb.modifyAttribute(ts, TmfStateValue.nullValue(), requestSizeQuark);
-        request.slotQuark = null;
-
-        // set the request as finished
-        Integer requestStatusQuark = ssb.getQuarkRelative(request.requestQuark, Attributes.STATUS);
-        ssb.modifyAttribute(ts, TmfStateValue.nullValue(),requestStatusQuark);
-        Integer sizeQuark = ssb.getQuarkRelative(request.requestQuark,Attributes.REQUEST_SIZE);
-        ssb.modifyAttribute(ts, TmfStateValue.nullValue(), sizeQuark);
-        Integer requestCurrentQueueQuark = ssb.getQuarkRelative(request.requestQuark, Attributes.QUEUE);
-        ssb.modifyAttribute(ts, TmfStateValue.nullValue(),requestCurrentQueueQuark);
-        Integer positionInQueueQuark = ssb.getQuarkRelative(request.requestQuark,Attributes.POSITION_IN_QUEUE);
-        ssb.modifyAttribute(ts, TmfStateValue.nullValue(),positionInQueueQuark);
-        if (nextRequest != null) {
-            Integer MergedInQuark = ssb.getQuarkRelativeAndAdd(request.requestQuark,Attributes.MERGED_IN);
-            ssb.modifyAttribute(ts,TmfStateValue.newValueLong(nextRequest.sector), MergedInQuark);
+        Integer MergedInQuark = ssb.getQuarkRelativeAndAdd(request.slotQuark,Attributes.MERGED_IN);
+        ssb.modifyAttribute(ts,TmfStateValue.nullValue(), MergedInQuark);
+        Integer IssuedFromQuark = ssb.getQuarkRelativeAndAdd(request.slotQuark,Attributes.ISSUED_FROM);
+        ssb.modifyAttribute(ts,TmfStateValue.nullValue(), IssuedFromQuark);
+        if (nextSlot != null) {
+          MergedInQuark = ssb.getQuarkRelativeAndAdd(request.slotQuark,Attributes.MERGED_IN);
+          ssb.modifyAttribute(ts,TmfStateValue.newValueLong(nextSlot), MergedInQuark);
         }
-        request.requestQuark = null;
+        request.slotQuark = null;
     }
 
     private static void update_queues_length(ITmfStateSystemBuilder ssb, long ts, Disk disk) throws StateValueTypeException, AttributeNotFoundException {

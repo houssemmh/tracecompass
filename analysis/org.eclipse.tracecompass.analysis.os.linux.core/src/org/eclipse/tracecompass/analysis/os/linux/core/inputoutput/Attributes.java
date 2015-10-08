@@ -48,5 +48,6 @@ public interface Attributes {
     static final String WAITINGQUEUE_LENGTH = "waitingqueue_length";
     static final String CURRENT_REQUEST = "Current_request";
     static final String REQUEST_SIZE = "Request_size";
+    static final String ISSUED_FROM = "issued_from";
 
 }
